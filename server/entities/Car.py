@@ -1,5 +1,6 @@
 from enum import Enum
 import simpy
+import math
 from .Road import Road
 from .Entity import SimulationEntity
 
@@ -34,7 +35,7 @@ class Car(SimulationEntity):
         self.drive_proc = env.process(self.drive())
 
     @property
-    def position(self):
+    def position(self) -> float:
         return self._position + self.speed * ((self.env.now - self.update_time) / 3600)
 
     @position.setter
@@ -42,49 +43,116 @@ class Car(SimulationEntity):
         self._position = value
         self.update_time = self.env.now
 
+    @property
+    def is_first_in_lane(self) -> bool:
+        queue_position = self.lane.get_car_position(self)
+        if queue_position == len(self.lane.queue) - 1:
+            return True
+        return False
+
+    @property
+    def car_ahead(self) -> "Car":
+        queue_position = self.lane.get_car_position(self)
+        if not self.is_first_in_lane:
+            return self.lane.queue[queue_position + 1]
+        else:
+            next_lane = self.lane.next
+
+            if len(next_lane.queue) == 0:
+                return None
+
+            return next_lane.queue[0]
+
+    @property
+    def lane_end_time(self) -> float:
+        if self.speed == 0:
+            return math.inf
+
+        end_time = (self.road.length - self.position) / self.speed
+        return end_time
+
+    @property
+    def lane_leave_time(self) -> float:
+        if self.speed == 0:
+            return math.inf
+
+        leave_time = (
+            self.road.length - self.position + self.length + MIN_GAP
+        ) / self.speed
+        return leave_time
+
+    @property
+    def distance_to_car_ahead(self) -> float:
+        car_ahead = self.car_ahead
+
+        if car_ahead is None:
+            return None
+
+        if car_ahead.lane == self.lane:
+            return car_ahead.position - self.position - (self.length + MIN_GAP)
+        elif car_ahead.lane == self.lane.next:
+            return (
+                car_ahead.position
+                + self.road.length
+                - self.position
+                - (car_ahead.length + MIN_GAP)
+            )
+
+    @property
+    def time_to_reach_car_ahead(self) -> float:
+        distance = self.distance_to_car_ahead
+        if distance is None:  # no car ahead
+            return math.inf
+
+        if self.speed < self.car_ahead.speed:
+            return math.inf
+
+        return distance / (self.speed - self.car_ahead.speed)
+
     def drive(self):
         while True:
             current_queue_position = self.lane.get_car_position(self)
 
             if self.state == CarState.Crossing:
-                if current_queue_position < len(self.lane.queue) - 1:
-                    car_ahead = self.lane.queue[current_queue_position - 1]
-                    # TODO: Bad calculation of end times
+                catch_up_time = self.time_to_reach_car_ahead
+                if catch_up_time < self.lane_end_time:
+                    # time to reach the car ahead
+                    yield self.env.timeout(catch_up_time * 3600)
 
-                    # time for the car ahead to reach the end of the road
-                    car_ahead_end_time = (
-                        self.road.length - car_ahead.position + self.length
-                    ) / car_ahead.speed
-                    # time to reach the end of the road
-                    end_time = (
-                        self.road.length - self.position + self.length
-                    ) / self.speed
+                    if self.car_ahead.lane == self.lane:
+                        self.position = self.car_ahead.position - (
+                            self.car_ahead.length + MIN_GAP
+                        )
+                    else:
+                        size_in_previous_lane = (
+                            self.car_ahead.length + MIN_GAP
+                        ) - self.car_ahead.position
+                        self.position = self.road.length - size_in_previous_lane
 
-                    if car_ahead_end_time > end_time:
-                        # time to reach the car ahead
-                        dt = (car_ahead.position - self.position - car_ahead.length) / (
-                            self.speed - car_ahead.speed
-                        )
-                        yield self.env.timeout(dt * 3600)
-                        print(
-                            f"Car {self.id} reached the car ahead {car_ahead.id} at {self.env.now} seconds"
-                        )
-                        self.position = car_ahead.position - car_ahead.length
-                        self.update_time = self.env.now
-                        self.state = CarState.Queued
-                        self.speed = car_ahead.speed
+                    self.update_time = self.env.now
+                    self.state = CarState.Queued
+                    self.speed = self.car_ahead.speed
+                    print(
+                        f"Car {self.id} reached the car ahead {self.car_ahead.id} at {self.env.now} seconds, pos: {self.position} km, ahead_pos: {self.car_ahead.position}, speed: {self.speed} km/h"
+                    )
 
             elif self.state == CarState.Queued:
-                if current_queue_position == len(self.lane.queue) - 1:
-                    self.state = CarState.Crossing
-                    self.speed = self.desired_speed
+                self.speed = self.car_ahead.speed
 
-            time_to_end = (self.road.length - self.position) / self.speed
-            yield self.env.timeout(time_to_end * 3600)
+                if self.speed > self.desired_speed:
+                    self.speed = self.desired_speed
+                    self.state = CarState.Crossing
+
+                    print(
+                        f"Car {self.id} left the queue at {self.env.now} seconds, car {self.car_ahead.id} is too fast ({self.car_ahead.speed} km/h)"
+                    )
+
+            yield self.env.timeout(self.lane_end_time * 3600)
             print(
-                f"Car {self.id} reached the end of the road at {self.env.now} seconds, road length: {self.road.length} km"
+                f"Car {self.id} reached the end of the road {self.road.id} at {self.env.now} seconds, road length: {self.road.length} km"
             )
             self.road = self.road.next_road
+            self.lane.pop(self)
             self.lane = self.lane.next
             self.lane.put(self)
             self.position = 0

@@ -8,6 +8,7 @@ from .Lane import Lane
 class Road:
     def __init__(
         self,
+        id: int,
         env: Environment,
         start: LatLng,
         end: LatLng,
@@ -16,6 +17,7 @@ class Road:
         oneway: bool = False,
         next_road: "Road" = None,
     ):
+        self.id = id
         self.env = env
         self.start = start
         self.end = end
@@ -29,7 +31,7 @@ class Road:
     @property
     def length(self):
         """Returns length of the road in km"""
-        # return haversine(self.start, self.end)
+        # return haversine(self.start, self.end) TODO: uncomment
         return 10
 
     def _init_lanes(self) -> List[Lane]:
