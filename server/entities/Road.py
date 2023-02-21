@@ -1,25 +1,8 @@
+from typing import List
 from utils import LatLng, haversine
-from simpy import Store, Environment
+from simpy import Environment
 
-
-class Lane:
-    def __init__(self, env: Environment, next_lane: "Lane" = None):
-        self.env = env
-        self.next = next_lane
-        self.queue = []
-
-    def put(self, car):
-        self.queue.insert(0, car)
-
-    def get(self):
-        return self.queue.pop()
-
-    def get_car_position(self, car):
-        # return self.queue.index(car)
-        for i, c in enumerate(self.queue):
-            if c.id == car.id:
-                return i
-
+from .Lane import Lane
 
 
 class Road:
@@ -40,16 +23,16 @@ class Road:
         self.lane_count = lane_count
         self.oneway = oneway
         self.next_road = next_road
-        self.length = self.__get_length()
-        self.lanes = self.__init_lanes()
+        self.lanes = self._init_lanes()
         # TODO: forward/backward lanes
 
-    def __get_length(self):
+    @property
+    def length(self):
         """Returns length of the road in km"""
         # return haversine(self.start, self.end)
         return 10
 
-    def __init_lanes(self):
+    def _init_lanes(self) -> List[Lane]:
         """Initializes the list of simpy containers representing the lanes"""
 
         lanes = []
