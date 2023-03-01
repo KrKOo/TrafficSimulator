@@ -27,7 +27,7 @@ def plot_roads(plt: matplotlib.pyplot, roads: List[Road]):
         plt.text(
             (x[0] + x[1]) / 2,
             (y[0] + y[1]) / 2,
-            road.lane_count,
+            f"{len(road.lanes.forward)} + {len(road.lanes.backward)}",
             fontsize=10,
             ha="center",
             va="center",

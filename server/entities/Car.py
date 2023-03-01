@@ -3,6 +3,7 @@ import simpy
 import math
 from .Road import Road
 from .Entity import SimulationEntity
+from utils import LatLng
 
 MIN_GAP = 0.001
 
@@ -42,6 +43,19 @@ class Car(SimulationEntity):
     def position(self, value):
         self._position = value
         self.update_time = self.env.now
+
+    @property
+    def coords(self) -> LatLng:
+        """Returns the current coordinates of the car"""
+        a = self.position / self.road.length
+
+        if self.lane.is_forward == False:
+            a = 1 - a
+
+        lat = self.road.start.lat + a * (self.road.end.lat - self.road.start.lat)
+        lng = self.road.start.lng + a * (self.road.end.lng - self.road.start.lng)
+
+        return LatLng(lat, lng)
 
     @property
     def is_first_in_lane(self) -> bool:
@@ -147,11 +161,18 @@ class Car(SimulationEntity):
                         f"Car {self.id} left the queue at {self.env.now} seconds, car {self.car_ahead.id} is too fast ({self.car_ahead.speed} km/h)"
                     )
 
+            print(
+                f"Car {self.id} is at {self.coords.lat}, {self.coords.lng} km, speed: {self.speed} km/h, time: {self.env.now} seconds"
+            )
             yield self.env.timeout(self.lane_end_time * 3600)
             print(
-                f"Car {self.id} reached the end of the road {self.road.id} at {self.env.now} seconds, road length: {self.road.length} km"
+                f"Car {self.id} reached the end of the road {self.road.id} at {self.env.now} seconds, road length: {self.road.length} km, lat: {self.coords.lat}, lng: {self.coords.lng}"
             )
-            self.road = self.road.next_road
+            if self.lane.is_forward:
+                self.road = self.road.next_road
+            else:
+                self.road = self.road.prev_road
+
             self.lane.pop(self)
             self.lane = self.lane.next
             self.lane.put(self)
