@@ -1,14 +1,16 @@
 import osmium
 from matplotlib import pyplot as plt
 import numpy as np
+import simpy
 
 from utils import LatLng
 from entities import Road
 
 
 class Parser(osmium.SimpleHandler):
-    def __init__(self):
+    def __init__(self, env):
         osmium.SimpleHandler.__init__(self)
+        self.env = env
         self._nodes = []
         self.roads = []
 
@@ -22,23 +24,37 @@ class Parser(osmium.SimpleHandler):
             [w.nodes[i].ref, w.nodes[i + 1].ref] for i in range(len(w.nodes) - 1)
         ]
 
-        for line_nodes in lines_nodes:
+        for idx, line_nodes in enumerate(lines_nodes):
             if line_nodes[0] in node_dict.keys() and line_nodes[1] in node_dict.keys():
+                try:
+                    maxspeed = int(w.tags.get("maxspeed", "50"))
+                except ValueError:
+                    maxspeed = 50
+
+                try:
+                    lanes = int(w.tags.get("lanes", "0"))
+                except ValueError:
+                    lanes = 0
+
                 self.roads.append(
                     Road(
+                        idx,
+                        env,
                         node_dict[line_nodes[0]],
                         node_dict[line_nodes[1]],
-                        w.tags.get("maxspeed"),
-                        w.tags.get("lanes") or 0,
+                        maxspeed,
+                        lanes,
                         w.tags.get("oneway") == "yes",
                     )
                 )
 
 
 if __name__ == "__main__":
-    parser = Parser()
+    env = simpy.Environment()
 
-    parser.apply_file("data/moravak.osm")
+    parser = Parser(env)
+
+    parser.apply_file("data/clean_moravak.osm")
 
     for road in parser.roads:
         x = [road.start.lng, road.end.lng]
