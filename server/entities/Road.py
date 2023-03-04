@@ -36,16 +36,16 @@ class Road:
         self.end = end
         self.max_speed = max_speed
         self.oneway = oneway
-        self.next_road = next_road
-        self.prev_road = None
-        self.lanes = lanes
+        self.next_road: Road = next_road
+        self.prev_road: Road = None
+        self.lanes: RoadLanes = lanes
 
         self._init_next_lanes()
         if next_road is not None:
             next_road.set_prev_road(self)
 
     @property
-    def length(self):
+    def length(self) -> float:
         """Returns length of the road in km"""
         # return haversine(self.start, self.end) TODO: uncomment
         return 10

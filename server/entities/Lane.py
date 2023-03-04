@@ -1,10 +1,14 @@
 from .Entity import SimulationEntity
+from utils import Turn
+from typing import List
 
 
 class Lane:
-    def __init__(self, is_forward: bool = True, next_lane: "Lane" = None):
-        self.next = next_lane
+    def __init__(self, is_forward: bool = True, next_lane: "Lane" = None, turn: List[Turn] = None):
         self.is_forward = is_forward
+        self.next = next_lane
+        self.turn = turn
+
         self.queue = []
 
     @property
