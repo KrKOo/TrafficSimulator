@@ -1,6 +1,6 @@
 import osmium
 from utils import LatLng, str_to_int, Turn
-from entities import Way, WayLanes
+from entities import Way, WayLanes, Crossroad, Node
 from typing import List
 
 class Parser(osmium.SimpleHandler):
@@ -9,6 +9,7 @@ class Parser(osmium.SimpleHandler):
         self.env = env
         self._nodes = []
         self.ways: List[Way] = []
+        self.crossroads: List[Crossroad] = []
 
     def node(self, n: osmium.osm.Node):
         self._nodes.append([n.id, LatLng(n.location.lat, n.location.lon)])
@@ -19,13 +20,15 @@ class Parser(osmium.SimpleHandler):
         maxspeed = str_to_int(w.tags.get("maxspeed", "50"), 50)
         oneway = w.tags.get("oneway") == "yes"
 
-        nodes = [node_dict[node.ref] for node in w.nodes]
+        nodes = [Node(node.ref, node_dict[node.ref]) for node in w.nodes] #TODO: maybe int(node.ref)
 
         lanes = self._parse_lanes(w)
 
         new_way = Way(w.id, maxspeed, lanes, oneway, nodes)
-
         self.ways.append(new_way)
+
+        self._create_or_update_crossroad(new_way)
+
 
     def _parse_lanes(self, w: osmium.osm.Way) -> WayLanes:
         lane_count = str_to_int(w.tags.get("lanes", "0"), 0)
@@ -63,3 +66,29 @@ class Parser(osmium.SimpleHandler):
         turns = [[Turn[turn] for turn in lane_turns] for lane_turns in turns]
 
         return turns
+
+    def _create_or_update_crossroad(self, way: Way):
+        prev_crossroad = self._get_crossroad(way.nodes[0].id)
+        if prev_crossroad is None:
+            prev_crossroad = Crossroad(way.nodes[0].id, way.nodes[0].pos, [way])
+            self.crossroads.append(prev_crossroad)
+        else:
+            prev_crossroad.ways.append(way)
+
+        way.prev_crossroad = prev_crossroad
+
+        next_crossroad = self._get_crossroad(way.nodes[-1].id)
+        if next_crossroad is None:
+            next_crossroad = Crossroad(way.nodes[-1].id, way.nodes[-1].pos, [way])
+            self.crossroads.append(next_crossroad)
+        else:
+            next_crossroad.ways.append(way)
+
+        way.next_crossroad = next_crossroad
+
+
+    def _get_crossroad(self, id: int) -> Crossroad:
+        for crossroad in self.crossroads:
+            if crossroad.id == id:
+                return crossroad
+        return None

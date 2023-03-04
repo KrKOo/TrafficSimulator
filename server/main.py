@@ -31,7 +31,7 @@ if __name__ == "__main__":
                     },
                 )
             else:
-                plt.plot(x, y, "ro", linestyle="-", linewidth=2)
+                plt.plot(x, y, "r", linestyle="-", linewidth=2)
 
             fw_turns = [lane.turn for lane in road.lanes.forward if lane.turn is not None]
             bw_turns = [lane.turn for lane in road.lanes.backward if lane.turn is not None]
@@ -39,10 +39,14 @@ if __name__ == "__main__":
             plt.text(
                 (x[0] + x[1]) / 2,
                 (y[0] + y[1]) / 2,
-                f"{fw_turns}, {bw_turns}",
+                # f"{fw_turns}, {bw_turns}",
+                f"{len(road.lanes.forward)}, {len(road.lanes.backward)}",
                 fontsize=10,
                 ha="center",
                 va="center",
             )
+
+            plt.plot(way.prev_crossroad.pos.lng, way.prev_crossroad.pos.lat, 'go')
+            plt.plot(way.next_crossroad.pos.lng, way.next_crossroad.pos.lat, 'go')
 
     plt.show()

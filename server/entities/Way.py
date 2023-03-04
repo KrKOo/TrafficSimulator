@@ -1,6 +1,9 @@
 from typing import List
 from utils import LatLng, Turn
-from entities import Road, Lane, RoadLanes, Crossroad
+from .Node import Node
+from .Road import Road, RoadLanes
+from .Lane import Lane
+from .Crossroad import Crossroad
 
 class WayLanes:
     def __init__(self, forward_count: int, backward_count: int, turn_lanes_forward: List[List[Turn]], turn_lanes_backward: List[List[Turn]]):
@@ -11,7 +14,7 @@ class WayLanes:
         # TODO: railway, psv, vehicle lanes
 
 class Way:
-    def __init__(self, id: int, max_speed: int, lanes: WayLanes, oneway: bool, nodes: List[LatLng]):
+    def __init__(self, id: int, max_speed: int, lanes: WayLanes, oneway: bool, nodes: List[Node]):
         self.id = id
         self.max_speed = max_speed
         self.lanes = lanes
@@ -24,7 +27,7 @@ class Way:
         self.prev_crossroad: Crossroad = None
 
     def _init_roads(self) -> List[Road]:
-        lines = [[self.nodes[i], self.nodes[i + 1]] for i in range(len(self.nodes) - 1)]
+        lines = [[self.nodes[i].pos, self.nodes[i + 1].pos] for i in range(len(self.nodes) - 1)]
 
         if len(self.lanes.forward_lane_turn) == 0:
             forward_lanes = [Lane(True) for _ in range(self.lanes.forward_lane_count)]
