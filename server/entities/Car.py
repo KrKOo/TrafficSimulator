@@ -1,7 +1,8 @@
 from enum import Enum
 import simpy
 import math
-from .Road import Road
+import random
+from .Way import Way
 from .Entity import SimulationEntity
 from utils import LatLng
 
@@ -17,14 +18,14 @@ class Car(SimulationEntity):
     def __init__(
         self,
         env: simpy.Environment,
-        road: Road,
+        way: Way,
         lane_id: int,
         speed: int,
         length: int = 0.003,
     ):
         SimulationEntity.__init__(self, env)
-        self.road = road
-        self.lane = road.lanes[lane_id]
+        self.way = way
+        self.lane = way.lanes[lane_id]
         self.desired_speed = speed  # in km/h
         self.speed = speed  # in km/h
         self.length = length  # in km
@@ -45,17 +46,14 @@ class Car(SimulationEntity):
         self.update_time = self.env.now
 
     @property
-    def coords(self) -> LatLng:
-        """Returns the current coordinates of the car"""
-        a = self.position / self.road.length
+    def way_percentage(self) -> float:
+        """Return the percentage of the way the car is on"""
+        p = self.position / self.way.length
 
         if self.lane.is_forward == False:
-            a = 1 - a
+            p = 1 - p
 
-        lat = self.road.start.lat + a * (self.road.end.lat - self.road.start.lat)
-        lng = self.road.start.lng + a * (self.road.end.lng - self.road.start.lng)
-
-        return LatLng(lat, lng)
+        return p * 100
 
     @property
     def is_first_in_lane(self) -> bool:
@@ -64,25 +62,22 @@ class Car(SimulationEntity):
             return True
         return False
 
+
+    #TODO: check for cars behind the crossroad
     @property
     def car_ahead(self) -> "Car":
         queue_position = self.lane.get_car_position(self)
         if not self.is_first_in_lane:
             return self.lane.queue[queue_position + 1]
         else:
-            next_lane = self.lane.next
-
-            if len(next_lane.queue) == 0:
-                return None
-
-            return next_lane.queue[0]
+            return None
 
     @property
     def lane_end_time(self) -> float:
         if self.speed == 0:
             return math.inf
 
-        end_time = (self.road.length - self.position) / self.speed
+        end_time = (self.way.length - self.position) / self.speed
         return end_time
 
     @property
@@ -91,7 +86,7 @@ class Car(SimulationEntity):
             return math.inf
 
         leave_time = (
-            self.road.length - self.position + self.length + MIN_GAP
+            self.way.length - self.position + self.length + MIN_GAP
         ) / self.speed
         return leave_time
 
@@ -107,7 +102,7 @@ class Car(SimulationEntity):
         elif car_ahead.lane == self.lane.next:
             return (
                 car_ahead.position
-                + self.road.length
+                + self.way.length
                 - self.position
                 - (car_ahead.length + MIN_GAP)
             )
@@ -141,7 +136,7 @@ class Car(SimulationEntity):
                         size_in_previous_lane = (
                             self.car_ahead.length + MIN_GAP
                         ) - self.car_ahead.position
-                        self.position = self.road.length - size_in_previous_lane
+                        self.position = self.way.length - size_in_previous_lane
 
                     self.update_time = self.env.now
                     self.state = CarState.Queued
@@ -162,18 +157,23 @@ class Car(SimulationEntity):
                     )
 
             print(
-                f"Car {self.id} is at {self.coords.lat}, {self.coords.lng} km, speed: {self.speed} km/h, time: {self.env.now} seconds"
+                f"Car {self.id} is at {self.way_percentage}%, speed: {self.speed} km/h, time: {self.env.now} seconds"
             )
             yield self.env.timeout(self.lane_end_time * 3600)
             print(
-                f"Car {self.id} reached the end of the road {self.road.id} at {self.env.now} seconds, road length: {self.road.length} km, lat: {self.coords.lat}, lng: {self.coords.lng}"
+                f"Car {self.id} reached the end of the way {self.way.id} at {self.env.now} seconds, way length: {self.way.length} km, at {self.way_percentage}%"
             )
-            if self.lane.is_forward:
-                self.road = self.road.next_road
-            else:
-                self.road = self.road.prev_road
 
+            crossroad = self.way.next_crossroad if self.lane.is_forward else self.way.prev_crossroad
+            next_options = crossroad.get_next_options(self.way)
+
+            # TODO: A* instead of random ;)
+            next_option = random.choice(next_options)
+            next_way = next_option.way
+            next_lane = random.choice(next_option.lanes)
+
+            self.way = next_way
             self.lane.pop(self)
-            self.lane = self.lane.next
+            self.lane = next_lane
             self.lane.put(self)
             self.position = 0

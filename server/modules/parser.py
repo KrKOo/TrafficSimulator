@@ -1,6 +1,6 @@
 import osmium
 from utils import LatLng, str_to_int, Turn
-from entities import Way, WayLanes, Crossroad, Node
+from entities import Way, WayLanesProps, Crossroad, Node
 from typing import List
 
 class Parser(osmium.SimpleHandler):
@@ -18,19 +18,18 @@ class Parser(osmium.SimpleHandler):
         node_dict = dict(self._nodes)
 
         maxspeed = str_to_int(w.tags.get("maxspeed", "50"), 50)
-        oneway = w.tags.get("oneway") == "yes"
 
         nodes = [Node(node.ref, node_dict[node.ref]) for node in w.nodes] #TODO: maybe int(node.ref)
 
         lanes = self._parse_lanes(w)
 
-        new_way = Way(w.id, maxspeed, lanes, oneway, nodes)
+        new_way = Way(w.id, maxspeed, lanes, nodes)
         self.ways.append(new_way)
 
         self._create_or_update_crossroad(new_way)
 
 
-    def _parse_lanes(self, w: osmium.osm.Way) -> WayLanes:
+    def _parse_lanes(self, w: osmium.osm.Way) -> WayLanesProps:
         lane_count = str_to_int(w.tags.get("lanes", "0"), 0)
         lane_forward_count = str_to_int(w.tags.get("lanes:forward", "0"), 0)
         lane_backward_count = str_to_int(w.tags.get("lanes:backward", "0"), 0)
@@ -53,7 +52,7 @@ class Parser(osmium.SimpleHandler):
         forward_turns = self._parse_turns(w.tags.get("turn:lanes:forward", ""))
         backward_turns = self._parse_turns(w.tags.get("turn:lanes:backward", ""))
 
-        way_lanes = WayLanes(lane_forward_count, lane_backward_count, forward_turns, backward_turns)
+        way_lanes = WayLanesProps(lane_forward_count, lane_backward_count, forward_turns, backward_turns)
 
         return way_lanes
 
@@ -70,7 +69,7 @@ class Parser(osmium.SimpleHandler):
     def _create_or_update_crossroad(self, way: Way):
         prev_crossroad = self._get_crossroad(way.nodes[0].id)
         if prev_crossroad is None:
-            prev_crossroad = Crossroad(way.nodes[0].id, way.nodes[0].pos, [way])
+            prev_crossroad = Crossroad(way.nodes[0].id, way.nodes[0], [way])
             self.crossroads.append(prev_crossroad)
         else:
             prev_crossroad.ways.append(way)
@@ -79,7 +78,7 @@ class Parser(osmium.SimpleHandler):
 
         next_crossroad = self._get_crossroad(way.nodes[-1].id)
         if next_crossroad is None:
-            next_crossroad = Crossroad(way.nodes[-1].id, way.nodes[-1].pos, [way])
+            next_crossroad = Crossroad(way.nodes[-1].id, way.nodes[-1], [way])
             self.crossroads.append(next_crossroad)
         else:
             next_crossroad.ways.append(way)

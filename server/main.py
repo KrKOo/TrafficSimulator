@@ -2,6 +2,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import simpy
 from modules import Parser
+from entities import Car
 
 
 if __name__ == "__main__":
@@ -9,14 +10,14 @@ if __name__ == "__main__":
 
     parser = Parser(env)
 
-    parser.apply_file("data/clean_brno.osm")
+    parser.apply_file("data/clean_lipuvka.osm")
 
-    for way in parser.ways:
+    for idx, way in enumerate(parser.ways):
         roads = way.roads
         for road in roads:
             x = [road.start.lng, road.end.lng]
             y = [road.start.lat, road.end.lat]
-            if road.oneway:
+            if len(way.lanes.backward) == 0: # oneway
                 plt.annotate(
                     "",
                     xy=([x[1], y[1]]),
@@ -33,20 +34,24 @@ if __name__ == "__main__":
             else:
                 plt.plot(x, y, "r", linestyle="-", linewidth=2)
 
-            fw_turns = [lane.turn for lane in road.lanes.forward if lane.turn is not None]
-            bw_turns = [lane.turn for lane in road.lanes.backward if lane.turn is not None]
+            fw_turns = [lane.turn for lane in way.lanes.forward if lane.turn is not None]
+            bw_turns = [lane.turn for lane in way.lanes.backward if lane.turn is not None]
 
             plt.text(
                 (x[0] + x[1]) / 2,
                 (y[0] + y[1]) / 2,
                 # f"{fw_turns}, {bw_turns}",
-                f"{len(road.lanes.forward)}, {len(road.lanes.backward)}",
+                f"{idx}, {way.id}",
                 fontsize=10,
                 ha="center",
                 va="center",
             )
 
-            plt.plot(way.prev_crossroad.pos.lng, way.prev_crossroad.pos.lat, 'go')
-            plt.plot(way.next_crossroad.pos.lng, way.next_crossroad.pos.lat, 'go')
+            plt.plot(way.prev_crossroad.node.pos.lng, way.prev_crossroad.node.pos.lat, 'go')
+            plt.plot(way.next_crossroad.node.pos.lng, way.next_crossroad.node.pos.lat, 'go')
 
     plt.show()
+
+    car1 = Car(env, parser.ways[13], 0, 50)
+    env.run(until=100000)
+

@@ -4,9 +4,9 @@ from typing import List
 
 
 class Lane:
-    def __init__(self, is_forward: bool = True, next_lane: "Lane" = None, turn: List[Turn] = None):
+    def __init__(self, is_forward: bool = True, next_lanes: List["Lane"] = None, turn: List[Turn] = None):
         self.is_forward = is_forward
-        self.next = next_lane
+        self.next = next_lanes
         self.turn = turn
 
         self.queue = []
