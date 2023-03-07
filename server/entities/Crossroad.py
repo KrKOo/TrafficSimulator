@@ -15,6 +15,7 @@ class NextOption:
         self.way = way
         self.lanes = lanes
 
+
 class Crossroad:
     def __init__(self, id: int, node: Node, ways: List[Way] = None):
         self.id = id
@@ -25,8 +26,8 @@ class Crossroad:
     def get_next_options(self, way: Way) -> List[NextOption]:
         next_options: List[NextOption] = []
 
-        in_ways = [w for w in self.ways if w.nodes[-1] == self.node]
-        out_ways = [w for w in self.ways if w.nodes[0] == self.node]
+        in_ways = [w for w in self.ways if w.nodes[-1].id == self.node.id]
+        out_ways = [w for w in self.ways if w.nodes[0].id == self.node.id]
 
         for next_way in self.ways:
             if next_way == way:
@@ -47,5 +48,3 @@ class Crossroad:
             next_options.append(NextOption(next_way, lanes))
 
         return next_options
-
-

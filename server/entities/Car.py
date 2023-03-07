@@ -53,7 +53,7 @@ class Car(SimulationEntity):
         if self.lane.is_forward == False:
             p = 1 - p
 
-        return p * 100
+        return abs(round(p * 100, 4))
 
     @property
     def is_first_in_lane(self) -> bool:
@@ -62,8 +62,7 @@ class Car(SimulationEntity):
             return True
         return False
 
-
-    #TODO: check for cars behind the crossroad
+    # TODO: check for cars behind the crossroad
     @property
     def car_ahead(self) -> "Car":
         queue_position = self.lane.get_car_position(self)
@@ -164,13 +163,29 @@ class Car(SimulationEntity):
                 f"Car {self.id} reached the end of the way {self.way.id} at {self.env.now} seconds, way length: {self.way.length} km, at {self.way_percentage}%"
             )
 
-            crossroad = self.way.next_crossroad if self.lane.is_forward else self.way.prev_crossroad
+            crossroad = (
+                self.way.next_crossroad
+                if self.lane.is_forward
+                else self.way.prev_crossroad
+            )
+
             next_options = crossroad.get_next_options(self.way)
 
-            # TODO: A* instead of random ;)
-            next_option = random.choice(next_options)
-            next_way = next_option.way
-            next_lane = random.choice(next_option.lanes)
+            # Turn back if no other option
+            if len(next_options) == 0:
+                next_way = self.way
+                next_lane = random.choice(
+                    next_way.lanes.backward
+                    if self.lane.is_forward
+                    else next_way.lanes.forward
+                )
+                print(f"Turning back at crossroad {crossroad.id}")
+            else:
+                # TODO: A* instead of random ;)
+                next_option = random.choice(next_options)
+                next_way = next_option.way
+                # TODO: Apply turn rules
+                next_lane = random.choice(next_option.lanes)
 
             self.way = next_way
             self.lane.pop(self)

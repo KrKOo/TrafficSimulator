@@ -8,7 +8,7 @@ def plot_ways(plt: matplotlib.pyplot, ways: List[Way]):
         for road in way.roads:
             x = [road.start.lng, road.end.lng]
             y = [road.start.lat, road.end.lat]
-            if len(way.lanes.backward) == 0: # oneway
+            if len(way.lanes.backward) == 0:  # oneway
                 plt.annotate(
                     "",
                     xy=([x[1], y[1]]),
