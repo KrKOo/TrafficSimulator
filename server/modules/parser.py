@@ -29,7 +29,7 @@ class Parser(osmium.SimpleHandler):
 
     def init_crossroads(self):
         for way in self.ways:
-            self._create_or_update_crossroad(way)
+            self._init_way_crossroads(way)
 
     def _parse_lanes(self, w: osmium.osm.Way) -> WayLanesProps:
         lane_count = str_to_int(w.tags.get("lanes", "0"), 0)
@@ -68,39 +68,29 @@ class Parser(osmium.SimpleHandler):
 
         return turns
 
-    # TODO: refactor duplication
-    def _create_or_update_crossroad(self, way: Way):
-        prev_crossroad = self._get_crossroad(way.nodes[0].id)
-        if prev_crossroad is None:
-            prev_crossroad = Crossroad(way.nodes[0].id, way.nodes[0])
-            self.crossroads.append(prev_crossroad)
-
-            way_with_node_in_middle = self._get_way_with_node_in_middle(way.nodes[0])
-
-            if way_with_node_in_middle is not None:
-                new_way = way_with_node_in_middle.split(way.nodes[0])
-                new_way.next_crossroad = prev_crossroad
-                self.ways.append(new_way)
-
-                way_with_node_in_middle.prev_crossroad = prev_crossroad
-
+    def _init_way_crossroads(self, way: Way):
+        prev_crossroad = self._create_or_update_crossroad_on_node(way.nodes[0])
         way.prev_crossroad = prev_crossroad
 
-        next_crossroad = self._get_crossroad(way.nodes[-1].id)
-        if next_crossroad is None:
-            next_crossroad = Crossroad(way.nodes[-1].id, way.nodes[-1])
-            self.crossroads.append(next_crossroad)
+        next_crossroad = self._create_or_update_crossroad_on_node(way.nodes[-1])
+        way.next_crossroad = next_crossroad
 
-            way_with_node_in_middle = self._get_way_with_node_in_middle(way.nodes[-1])
+    def _create_or_update_crossroad_on_node(self, node: Node) -> Crossroad:
+        crossroad = self._get_crossroad(node.id)
+        if crossroad is None:
+            crossroad = Crossroad(node.id, node)
+            self.crossroads.append(crossroad)
+
+            way_with_node_in_middle = self._get_way_with_node_in_middle(node)
 
             if way_with_node_in_middle is not None:
-                new_way = way_with_node_in_middle.split(way.nodes[-1])
-                new_way.next_crossroad = next_crossroad
+                new_way = way_with_node_in_middle.split(node)
+                new_way.next_crossroad = crossroad
                 self.ways.append(new_way)
 
-                way_with_node_in_middle.prev_crossroad = next_crossroad
+                way_with_node_in_middle.prev_crossroad = crossroad
 
-        way.next_crossroad = next_crossroad
+        return crossroad
 
     def _get_way_with_node_in_middle(
         self, node: Node
