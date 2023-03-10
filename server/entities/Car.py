@@ -156,11 +156,11 @@ class Car(SimulationEntity):
                     )
 
             print(
-                f"Car {self.id} is at {self.way_percentage}%, speed: {self.speed} km/h, time: {self.env.now} seconds"
+                f"Car {self.id} is at {self.way_percentage}% of way {self.way.id}/{self.way.osm_id}, speed: {self.speed} km/h, time: {self.env.now} seconds"
             )
             yield self.env.timeout(self.lane_end_time * 3600)
             print(
-                f"Car {self.id} reached the end of the way {self.way.id} at {self.env.now} seconds, way length: {self.way.length} km, at {self.way_percentage}%"
+                f"Car {self.id} reached the end of the way {self.way.id}/{self.way.osm_id} at {self.env.now} seconds, way length: {self.way.length} km, at {self.way_percentage}%"
             )
 
             crossroad = (
@@ -169,10 +169,10 @@ class Car(SimulationEntity):
                 else self.way.prev_crossroad
             )
 
-            next_options = crossroad.get_next_options(self.way)
+            next_way_options = crossroad.get_next_way_options(self.way)
 
             # Turn back if no other option
-            if len(next_options) == 0:
+            if len(next_way_options) == 0:
                 next_way = self.way
                 next_lane = random.choice(
                     next_way.lanes.backward
@@ -182,10 +182,24 @@ class Car(SimulationEntity):
                 print(f"Turning back at crossroad {crossroad.id}")
             else:
                 # TODO: A* instead of random ;)
-                next_option = random.choice(next_options)
-                next_way = next_option.way
-                # TODO: Apply turn rules
-                next_lane = random.choice(next_option.lanes)
+                next_way_option = random.choice(next_way_options)
+                next_way = next_way_option.way
+                turn = next_way_option.turn
+                lane_options = crossroad.get_next_lane_options(self.way, next_way)
+                if self.lane not in lane_options.keys():
+                    # TODO: check if the car can switch lanes
+                    lane_to_switch = random.choice(list(lane_options.keys()))
+                    print(
+                        f"Cannot turn, moving to lane {lane_to_switch.id} on way {self.way.id}"
+                    )
+                    self.lane.pop(self)
+                    self.lane = lane_to_switch
+                    self.lane.put(self)
+
+                next_lane = random.choice(lane_options[self.lane])
+                print(
+                    f"Crossroad {crossroad.id}, FROM way - {self.way.id}/{self.way.osm_id}, lane - {self.lane.id} TO way - {next_way.id}, lane - {next_lane.id}, TURN - {turn}"
+                )
 
             self.way = next_way
             self.lane.pop(self)

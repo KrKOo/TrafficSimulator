@@ -4,6 +4,7 @@ from .Node import Node
 from .Road import Road
 from .Lane import Lane
 from .Crossroad import Crossroad
+from .Entity import EntityBase
 
 
 class WayLanesProps:
@@ -37,11 +38,16 @@ class WayLanes:
         return lanes[index]
 
 
-class Way:
+class Way(EntityBase):
     def __init__(
-        self, id: int, max_speed: int, lanes_props: WayLanesProps, nodes: List[Node]
+        self,
+        max_speed: int,
+        lanes_props: WayLanesProps,
+        nodes: List[Node],
+        osm_id: int = None,
     ):
-        self.id = id
+        super().__init__()
+        self.osm_id = osm_id
         self.max_speed = max_speed
         self.lane_props = lanes_props
         self.lanes = self._init_lanes(lanes_props)
@@ -61,7 +67,7 @@ class Way:
             forward_lanes = [Lane(True) for _ in range(lanes_props.forward_lane_count)]
         else:
             forward_lanes = [
-                Lane(True, turn=lane_turn)
+                Lane(True, turns=lane_turn)
                 for lane_turn in lanes_props.forward_lane_turn
             ]
 
@@ -71,7 +77,7 @@ class Way:
             ]
         else:
             backward_lanes = [
-                Lane(False, turn=lane_turn)
+                Lane(False, turns=lane_turn)
                 for lane_turn in lanes_props.backward_lane_turn
             ]
 
@@ -83,7 +89,7 @@ class Way:
             for i in range(len(self.nodes) - 1)
         ]
 
-        roads = [Road(1, line[0], line[1]) for line in lines]  # TODO: fix ID
+        roads = [Road(line[0], line[1]) for line in lines]  # TODO: fix ID
 
         for i in range(len(roads) - 1):
             roads[i].set_next_road(roads[i + 1])
@@ -110,9 +116,7 @@ class Way:
             self.lane_props.backward_lane_count,
         )
 
-        new_way = Way(
-            2 * self.id, self.max_speed, new_way_lane_props, new_way_nodes
-        )  # TODO: fix ID
+        new_way = Way(self.max_speed, new_way_lane_props, new_way_nodes, self.osm_id)
 
         new_way.prev_crossroad = self.prev_crossroad
         self.prev_crossroad = None

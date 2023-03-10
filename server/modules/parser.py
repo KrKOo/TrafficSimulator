@@ -24,7 +24,7 @@ class Parser(osmium.SimpleHandler):
 
         lanes = self._parse_lanes(w)
 
-        new_way = Way(w.id, maxspeed, lanes, nodes)
+        new_way = Way(maxspeed, lanes, nodes, w.id)
         self.ways.append(new_way)
 
     def init_crossroads(self):
@@ -78,7 +78,7 @@ class Parser(osmium.SimpleHandler):
     def _create_or_update_crossroad_on_node(self, node: Node) -> Crossroad:
         crossroad = self._get_crossroad(node.id)
         if crossroad is None:
-            crossroad = Crossroad(node.id, node)
+            crossroad = Crossroad(node)
             self.crossroads.append(crossroad)
 
             way_with_node_in_middle = self._get_way_with_node_in_middle(node)
@@ -105,8 +105,8 @@ class Parser(osmium.SimpleHandler):
                     return way
         return None
 
-    def _get_crossroad(self, id: int) -> Crossroad:
+    def _get_crossroad(self, node_id: int) -> Crossroad:
         for crossroad in self.crossroads:
-            if crossroad.id == id:
+            if crossroad.node.id == node_id:
                 return crossroad
         return None

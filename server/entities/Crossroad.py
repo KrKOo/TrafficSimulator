@@ -7,12 +7,14 @@ if TYPE_CHECKING:
 import math
 from .Node import Node
 from .Lane import Lane
+from utils import Turn
+from .Entity import EntityBase
 
 
-class NextOption:
-    def __init__(self, way: Way, lanes: List[Lane]):
+class NextWayOption:
+    def __init__(self, way: Way, turn: Turn = Turn.none):
         self.way = way
-        self.lanes = lanes
+        self.turn = turn
 
 
 class CrossroadTurn:
@@ -22,9 +24,9 @@ class CrossroadTurn:
         self.right = right
 
 
-class Crossroad:
-    def __init__(self, id: int, node: Node, ways: List[Way] = None):
-        self.id = id
+class Crossroad(EntityBase):
+    def __init__(self, node: Node, ways: List[Way] = None):
+        super().__init__()
         self._ways = ways if ways is not None else []
         self.node = node
         self.turns: Dict[int, CrossroadTurn] = {}
@@ -56,32 +58,69 @@ class Crossroad:
     def remove_way(self, way: Way):
         self._ways.remove(way)
 
-    # TODO: add lane parameter or something... idk
-    def get_next_options(self, way: Way) -> List[NextOption]:
-        next_options: List[NextOption] = []
-
-        in_ways = [w for w in self._ways if w.nodes[-1].id == self.node.id]
-        out_ways = [w for w in self._ways if w.nodes[0].id == self.node.id]
+    def get_next_way_options(self, way: Way) -> List[NextWayOption]:
+        next_way_options: List[NextWayOption] = []
 
         for next_way in self._ways:
             if next_way == way:
                 continue
 
-            lanes = []
-            if way in in_ways:
-                if next_way in in_ways:
-                    lanes = next_way.lanes.backward
-                if next_way in out_ways:
-                    lanes = next_way.lanes.forward
+            turn_direction = self._get_way_turn(way, next_way)
+
+            if self._is_in_way(next_way):
+                if len(next_way.lanes.backward) > 0:
+                    next_way_options.append(NextWayOption(next_way, turn_direction))
             else:
-                if next_way in in_ways:
-                    lanes = next_way.lanes.backward
-                if next_way in out_ways:
-                    lanes = next_way.lanes.forward
+                if len(next_way.lanes.forward) > 0:
+                    next_way_options.append(NextWayOption(next_way, turn_direction))
 
-            next_options.append(NextOption(next_way, lanes))
+        return next_way_options
 
-        return next_options
+    def get_next_lane_options(
+        self, from_way: Way, to_way: Way
+    ) -> Dict[Lane, List[Lane]]:
+        turn_direction = self._get_way_turn(from_way, to_way)
+
+        in_lanes = (
+            from_way.lanes.forward
+            if self._is_in_way(from_way)
+            else from_way.lanes.backward
+        )
+        out_lanes = (
+            to_way.lanes.backward if self._is_in_way(to_way) else to_way.lanes.forward
+        )
+
+        lane_options: Dict[Lane, List[Lane]] = {}
+
+        for lane in in_lanes:
+            if lane.turns == None or Turn.none in lane.turns:
+                lane_options[lane] = out_lanes
+            else:
+                lane_options[lane] = [
+                    out_lane for out_lane in out_lanes if turn_direction in lane.turns
+                ]
+
+        return lane_options
+
+    def _is_in_way(self, way: Way) -> bool:
+        if way.nodes[-1].id == self.node.id:
+            return True
+        elif way.nodes[0].id == self.node.id:
+            return False
+
+        assert True, f"Way {way.id} is not connected to crossroad {self.id}"
+
+    def _get_way_turn(self, from_way: Way, to_way: Way):
+        way_turns = self.turns[from_way.id]
+
+        if way_turns.through == to_way:
+            return Turn.through
+        elif way_turns.left == to_way:
+            return Turn.left
+        elif way_turns.right == to_way:
+            return Turn.right
+
+        return None
 
     def _get_way_angles(self) -> Dict[Way, float]:
         in_ways = [w.id for w in self._ways if w.nodes[-1].id == self.node.id]

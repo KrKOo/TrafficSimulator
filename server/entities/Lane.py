@@ -1,13 +1,20 @@
-from .Entity import SimulationEntity
+from .Entity import SimulationEntity, EntityBase
 from utils import Turn
 from typing import List
 
 
-class Lane:
-    def __init__(self, is_forward: bool = True, next_lanes: List["Lane"] = None, turn: List[Turn] = None):
+class Lane(EntityBase):
+    def __init__(
+        self,
+        is_forward: bool = True,
+        next_lanes: List["Lane"] = None,
+        turns: List[Turn] = None,
+    ):
+        super().__init__()
+
         self.is_forward = is_forward
-        self.next = next_lanes
-        self.turn = turn
+        self.next = next_lanes  # TODO: Remove
+        self.turns = turns
 
         self.queue = []
 

@@ -1,15 +1,15 @@
 from utils import LatLng, haversine
+from .Entity import EntityBase
 
 
-class Road:
+class Road(EntityBase):
     def __init__(
         self,
-        id: int,
         start: LatLng,
         end: LatLng,
         next_road: "Road" = None,
     ):
-        self.id = id
+        super().__init__()
         self.start = start
         self.end = end
         self.next_road: Road = next_road
