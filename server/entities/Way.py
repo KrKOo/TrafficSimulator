@@ -1,6 +1,5 @@
 from typing import List
-from utils import LatLng, Turn
-import copy
+from utils import Turn
 from .Node import Node
 from .Road import Road
 from .Lane import Lane
@@ -133,27 +132,23 @@ class Way:
         if crossroad is None:
             if self._next_crossroad is None:
                 return
-            self._next_crossroad.ways.remove(self)
+            self._next_crossroad.remove_way(self)
             self._next_crossroad = None
             return
 
         self._next_crossroad = crossroad
         if self not in self._next_crossroad.ways:
-            self._next_crossroad.ways.append(
-                self
-            )  # TODO: check if it's not already there
+            self._next_crossroad.add_way(self)
 
     @prev_crossroad.setter
     def prev_crossroad(self, crossroad: Crossroad):
         if crossroad is None:
             if self._prev_crossroad is None:
                 return
-            self._prev_crossroad.ways.remove(self)
+            self._prev_crossroad.remove_way(self)
             self._prev_crossroad = None
             return
 
         self._prev_crossroad = crossroad
         if self not in self._prev_crossroad.ways:
-            self._prev_crossroad.ways.append(
-                self
-            )  # TODO: check if it's not already there
+            self._prev_crossroad.add_way(self)

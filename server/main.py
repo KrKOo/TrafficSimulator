@@ -50,8 +50,10 @@ if __name__ == "__main__":
             f"{crossroad.id}, {len(crossroad.ways)}",
             (crossroad.node.pos.lng, crossroad.node.pos.lat),
         )
+        print(crossroad)
+        print("----------------")
 
     car1 = Car(env, parser.ways[30], 0, 50)
 
-    env.run(until=100000)
+    # env.run(until=100000)
     plt.show()

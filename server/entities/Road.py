@@ -1,7 +1,5 @@
-from typing import List
 from utils import LatLng, haversine
 
-from .Lane import Lane
 
 class Road:
     def __init__(
