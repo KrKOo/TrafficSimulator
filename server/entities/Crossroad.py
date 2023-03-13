@@ -8,7 +8,7 @@ import math
 from .Node import Node
 from .Lane import Lane
 from utils import Turn
-from .Entity import EntityBase
+from .Entity import EntityBase, WithId
 
 
 class NextWayOption:
@@ -24,9 +24,10 @@ class CrossroadTurn:
         self.right = right
 
 
-class Crossroad(EntityBase):
+class Crossroad(EntityBase, metaclass=WithId):
     def __init__(self, node: Node, ways: List[Way] = None):
         super().__init__()
+        self.id = next(self._ids)
         self._ways = ways if ways is not None else []
         self.node = node
         self.turns: Dict[int, CrossroadTurn] = {}

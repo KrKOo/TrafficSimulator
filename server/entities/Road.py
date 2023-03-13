@@ -1,8 +1,8 @@
 from utils import LatLng, haversine
-from .Entity import EntityBase
+from .Entity import EntityBase, WithId
 
 
-class Road(EntityBase):
+class Road(EntityBase, metaclass=WithId):
     def __init__(
         self,
         start: LatLng,
@@ -10,6 +10,7 @@ class Road(EntityBase):
         next_road: "Road" = None,
     ):
         super().__init__()
+        self.id = next(self._ids)
         self.start = start
         self.end = end
         self.next_road: Road = next_road

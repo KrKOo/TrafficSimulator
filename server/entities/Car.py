@@ -3,7 +3,7 @@ import simpy
 import math
 import random
 from .Way import Way
-from .Entity import SimulationEntity
+from .Entity import SimulationEntity, WithId
 from utils import LatLng
 
 MIN_GAP = 0.001
@@ -14,7 +14,7 @@ class CarState(Enum):
     Queued = 2
 
 
-class Car(SimulationEntity):
+class Car(SimulationEntity, metaclass=WithId):
     def __init__(
         self,
         env: simpy.Environment,
@@ -24,6 +24,7 @@ class Car(SimulationEntity):
         length: int = 0.003,
     ):
         SimulationEntity.__init__(self, env)
+        self.id = next(self._ids)
         self.way = way
         self.lane = way.lanes[lane_id]
         self.desired_speed = speed  # in km/h

@@ -1,19 +1,17 @@
-from .Entity import SimulationEntity, EntityBase
+from .Entity import SimulationEntity, EntityBase, WithId
 from utils import Turn
 from typing import List
 
 
-class Lane(EntityBase):
+class Lane(EntityBase, metaclass=WithId):
     def __init__(
         self,
         is_forward: bool = True,
-        next_lanes: List["Lane"] = None,
         turns: List[Turn] = None,
     ):
         super().__init__()
-
+        self.id = next(self._ids)
         self.is_forward = is_forward
-        self.next = next_lanes  # TODO: Remove
         self.turns = turns
 
         self.queue = []

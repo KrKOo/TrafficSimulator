@@ -4,7 +4,7 @@ from .Node import Node
 from .Road import Road
 from .Lane import Lane
 from .Crossroad import Crossroad
-from .Entity import EntityBase
+from .Entity import EntityBase, WithId
 
 
 class WayLanesProps:
@@ -38,7 +38,7 @@ class WayLanes:
         return lanes[index]
 
 
-class Way(EntityBase):
+class Way(EntityBase, metaclass=WithId):
     def __init__(
         self,
         max_speed: int,
@@ -47,6 +47,7 @@ class Way(EntityBase):
         osm_id: int = None,
     ):
         super().__init__()
+        self.id = next(self._ids)
         self.osm_id = osm_id
         self.max_speed = max_speed
         self.lane_props = lanes_props

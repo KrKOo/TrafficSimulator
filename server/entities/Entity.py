@@ -2,11 +2,15 @@ import simpy
 import itertools
 
 
-class EntityBase:
-    id_iter = itertools.count()
+class WithId(type):
+    def __init__(cls, name, bases, attrs):
+        super().__init__(name, bases, attrs)
+        cls._ids = itertools.count(1)
 
+
+class EntityBase:
     def __init__(self):
-        self.id = next(self.id_iter)
+        pass
 
 
 class SimulationEntity(EntityBase):
