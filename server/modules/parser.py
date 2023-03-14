@@ -8,19 +8,17 @@ class Parser(osmium.SimpleHandler):
     def __init__(self, env):
         osmium.SimpleHandler.__init__(self)
         self.env = env
-        self._nodes = []
+        self._nodes: dict(int, Node) = {}
         self.ways: List[Way] = []
         self.crossroads: List[Crossroad] = []
 
     def node(self, n: osmium.osm.Node):
-        self._nodes.append([n.id, LatLng(n.location.lat, n.location.lon)])
+        self._nodes[n.id] = Node(n.id, LatLng(n.location.lat, n.location.lon))
 
     def way(self, w: osmium.osm.Way):
-        node_dict = dict(self._nodes)
-
         maxspeed = str_to_int(w.tags.get("maxspeed", "50"), 50)
 
-        nodes = [Node(node.ref, node_dict[node.ref]) for node in w.nodes]
+        nodes = [self._nodes[node.ref] for node in w.nodes]
 
         lanes = self._parse_lanes(w)
 
@@ -95,14 +93,9 @@ class Parser(osmium.SimpleHandler):
     def _get_way_with_node_in_middle(
         self, node: Node
     ) -> Way:  # TODO: what if mulitple ways?
-        for way in self.ways:
-            for way_node in way.nodes:
-                if (
-                    way_node.id == node.id
-                    and way_node != way.nodes[0]
-                    and way_node != way.nodes[-1]
-                ):
-                    return way
+        for way in node.ways:
+            if way.nodes[0].id != node.id and way.nodes[-1].id != node.id:
+                return way
         return None
 
     def _get_crossroad(self, node_id: int) -> Crossroad:

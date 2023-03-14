@@ -1,3 +1,6 @@
+
+# import matplotlib
+# matplotlib.use( 'tkagg' )
 from matplotlib import pyplot as plt
 import numpy as np
 import simpy
@@ -12,7 +15,7 @@ if __name__ == "__main__":
 
     parser = Parser(env)
 
-    parser.apply_file("data/clean_lipuvka.osm")
+    parser.apply_file("data/clean_brno.osm")
     parser.init_crossroads()
 
     for idx, way in enumerate(parser.ways):

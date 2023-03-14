@@ -43,7 +43,7 @@ class Way(EntityBase, metaclass=WithId):
         self,
         max_speed: int,
         lanes_props: WayLanesProps,
-        nodes: List[Node],
+        nodes: List[Node] = None,
         osm_id: int = None,
     ):
         super().__init__()
@@ -52,7 +52,8 @@ class Way(EntityBase, metaclass=WithId):
         self.max_speed = max_speed
         self.lane_props = lanes_props
         self.lanes = self._init_lanes(lanes_props)
-        self.nodes = nodes
+        self._nodes = []
+        self.nodes = nodes if nodes is not None else []
 
         self.roads = self._init_roads()
 
@@ -62,6 +63,22 @@ class Way(EntityBase, metaclass=WithId):
     @property
     def length(self):
         return sum([road.length for road in self.roads])
+
+    @property
+    def nodes(self):
+        return self._nodes
+
+    @nodes.setter
+    def nodes(self, nodes: List[Node]):
+        for node in self._nodes:
+            if self in node.ways:
+                node.remove_way(self)
+
+        self._nodes = nodes
+
+        for node in self._nodes:
+            if self not in node.ways:
+                node.add_way(self)
 
     def _init_lanes(self, lanes_props) -> WayLanes:
         if lanes_props.forward_lane_turn is None:
