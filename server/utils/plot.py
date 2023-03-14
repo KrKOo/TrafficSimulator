@@ -1,9 +1,8 @@
-from typing import List
 from entities import Road, Way
 import matplotlib
 
 
-def plot_ways(plt: matplotlib.pyplot, ways: List[Way]):
+def plot_ways(plt: matplotlib.pyplot, ways: list[Way]):
     for way in ways:
         for road in way.roads:
             x = [road.start.lng, road.end.lng]

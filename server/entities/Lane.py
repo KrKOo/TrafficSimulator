@@ -1,13 +1,12 @@
 from .Entity import SimulationEntity, EntityBase, WithId
 from utils import Turn
-from typing import List
 
 
 class Lane(EntityBase, metaclass=WithId):
     def __init__(
         self,
         is_forward: bool = True,
-        turns: List[Turn] = None,
+        turns: list[Turn] = None,
     ):
         super().__init__()
         self.id = next(self._ids)

@@ -1,7 +1,6 @@
 import osmium
 from utils import LatLng, str_to_int, Turn
 from entities import Way, WayLanesProps, Crossroad, Node
-from typing import List
 
 
 class Parser(osmium.SimpleHandler):
@@ -9,8 +8,8 @@ class Parser(osmium.SimpleHandler):
         osmium.SimpleHandler.__init__(self)
         self.env = env
         self._nodes: dict(int, Node) = {}
-        self.ways: List[Way] = []
-        self.crossroads: List[Crossroad] = []
+        self.ways: list[Way] = []
+        self.crossroads: list[Crossroad] = []
 
     def node(self, n: osmium.osm.Node):
         self._nodes[n.id] = Node(n.id, LatLng(n.location.lat, n.location.lon))
@@ -57,7 +56,7 @@ class Parser(osmium.SimpleHandler):
 
         return way_lanes
 
-    def _parse_turns(self, turns_str: str) -> List[List[Turn]]:
+    def _parse_turns(self, turns_str: str) -> list[list[Turn]]:
         if turns_str == "":
             return None
         turns = turns_str.split("|")

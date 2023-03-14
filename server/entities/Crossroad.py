@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, List, Dict
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from entities import Way
@@ -25,12 +25,12 @@ class CrossroadTurn:
 
 
 class Crossroad(EntityBase, metaclass=WithId):
-    def __init__(self, node: Node, ways: List[Way] = None):
+    def __init__(self, node: Node, ways: list[Way] = None):
         super().__init__()
         self.id = next(self._ids)
         self._ways = ways if ways is not None else []
         self.node = node
-        self.turns: Dict[int, CrossroadTurn] = {}
+        self.turns: dict[int, CrossroadTurn] = {}
 
     def __repr__(self):
         way_turns = {}
@@ -49,7 +49,7 @@ class Crossroad(EntityBase, metaclass=WithId):
         return text
 
     @property
-    def ways(self) -> List[Way]:
+    def ways(self) -> list[Way]:
         return self._ways
 
     def add_way(self, way: Way):
@@ -60,8 +60,8 @@ class Crossroad(EntityBase, metaclass=WithId):
         self._ways.remove(way)
 
     # TODO: refactor
-    def get_next_way_options(self, way: Way) -> List[NextWayOption]:
-        next_way_options: List[NextWayOption] = []
+    def get_next_way_options(self, way: Way) -> list[NextWayOption]:
+        next_way_options: list[NextWayOption] = []
 
         is_in_way = self._is_in_way(way)
 
@@ -97,7 +97,7 @@ class Crossroad(EntityBase, metaclass=WithId):
 
     def get_next_lane_options(
         self, from_way: Way, to_way: Way
-    ) -> Dict[Lane, List[Lane]]:
+    ) -> dict[Lane, list[Lane]]:
         turn_direction = self._get_way_turn(from_way, to_way)
 
         in_lanes = (
@@ -109,7 +109,7 @@ class Crossroad(EntityBase, metaclass=WithId):
             to_way.lanes.backward if self._is_in_way(to_way) else to_way.lanes.forward
         )
 
-        lane_options: Dict[Lane, List[Lane]] = {}
+        lane_options: dict[Lane, list[Lane]] = {}
 
         for lane in in_lanes:
             if lane.turns == None or Turn.none in lane.turns:
@@ -144,11 +144,11 @@ class Crossroad(EntityBase, metaclass=WithId):
 
         return None
 
-    def _get_way_angles(self) -> Dict[Way, float]:
+    def _get_way_angles(self) -> dict[Way, float]:
         in_ways = [w.id for w in self._ways if w.nodes[-1].id == self.node.id]
         out_ways = [w.id for w in self._ways if w.nodes[0].id == self.node.id]
 
-        way_angle: Dict[Way, float] = {}
+        way_angle: dict[Way, float] = {}
 
         for way in self._ways:
             delta_lat, delta_lng = 0, 0

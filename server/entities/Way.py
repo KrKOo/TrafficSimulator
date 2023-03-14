@@ -1,4 +1,3 @@
-from typing import List
 from utils import Turn
 from .Node import Node
 from .Road import Road
@@ -12,8 +11,8 @@ class WayLanesProps:
         self,
         forward_count: int,
         backward_count: int,
-        turn_lanes_forward: List[List[Turn]] = None,
-        turn_lanes_backward: List[List[Turn]] = None,
+        turn_lanes_forward: list[list[Turn]] = None,
+        turn_lanes_backward: list[list[Turn]] = None,
     ):
         self.forward_lane_count = forward_count
         self.backward_lane_count = backward_count
@@ -23,7 +22,7 @@ class WayLanesProps:
 
 
 class WayLanes:
-    def __init__(self, forward: List[Lane], backward: List[Lane]):
+    def __init__(self, forward: list[Lane], backward: list[Lane]):
         self.forward = forward
         self.backward = backward
 
@@ -43,7 +42,7 @@ class Way(EntityBase, metaclass=WithId):
         self,
         max_speed: int,
         lanes_props: WayLanesProps,
-        nodes: List[Node] = None,
+        nodes: list[Node] = None,
         osm_id: int = None,
     ):
         super().__init__()
@@ -69,7 +68,7 @@ class Way(EntityBase, metaclass=WithId):
         return self._nodes
 
     @nodes.setter
-    def nodes(self, nodes: List[Node]):
+    def nodes(self, nodes: list[Node]):
         for node in self._nodes:
             if self in node.ways:
                 node.remove_way(self)
@@ -101,7 +100,7 @@ class Way(EntityBase, metaclass=WithId):
 
         return WayLanes(forward_lanes, backward_lanes)
 
-    def _init_roads(self) -> List[Road]:
+    def _init_roads(self) -> list[Road]:
         lines = [
             [self.nodes[i].pos, self.nodes[i + 1].pos]
             for i in range(len(self.nodes) - 1)
