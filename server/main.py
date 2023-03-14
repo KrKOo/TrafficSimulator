@@ -3,9 +3,11 @@ import numpy as np
 import simpy
 from modules import Parser
 from entities import Car
+import random
 
 
 if __name__ == "__main__":
+    random.seed(0)
     env = simpy.Environment()
 
     parser = Parser(env)
@@ -53,7 +55,7 @@ if __name__ == "__main__":
         # print(crossroad)
         # print("----------------")
 
-    car1 = Car(env, parser.ways[30], 0, 50)
+    car1 = Car(env, parser.ways[13], 0, 50)
 
     env.run(until=100000)
     plt.show()

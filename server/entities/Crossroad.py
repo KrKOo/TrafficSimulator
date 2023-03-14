@@ -59,14 +59,32 @@ class Crossroad(EntityBase, metaclass=WithId):
     def remove_way(self, way: Way):
         self._ways.remove(way)
 
+    # TODO: refactor
     def get_next_way_options(self, way: Way) -> List[NextWayOption]:
         next_way_options: List[NextWayOption] = []
+
+        is_in_way = self._is_in_way(way)
 
         for next_way in self._ways:
             if next_way == way:
                 continue
 
             turn_direction = self._get_way_turn(way, next_way)
+
+            from_lanes = way.lanes.forward if is_in_way else way.lanes.backward
+            can_turn = False
+
+            for from_lane in from_lanes:
+                if (
+                    from_lane.turns == None
+                    or turn_direction in from_lane.turns
+                    or Turn.none in from_lane.turns
+                ):
+                    can_turn = True
+                    break
+
+            if not can_turn:
+                continue
 
             if self._is_in_way(next_way):
                 if len(next_way.lanes.backward) > 0:
@@ -97,9 +115,12 @@ class Crossroad(EntityBase, metaclass=WithId):
             if lane.turns == None or Turn.none in lane.turns:
                 lane_options[lane] = out_lanes
             else:
-                lane_options[lane] = [
+                lanes = [
                     out_lane for out_lane in out_lanes if turn_direction in lane.turns
                 ]
+
+                if len(lanes) > 0:
+                    lane_options[lane] = lanes
 
         return lane_options
 
@@ -154,15 +175,23 @@ class Crossroad(EntityBase, metaclass=WithId):
             this_way_angle = way_angle[way]
 
             turns = CrossroadTurn(None, None, None)
+            turn_count = 0
 
             for target_way, angle in way_angle.items():
                 delta_angle = (angle - this_way_angle) % 360
 
-                if 45 <= delta_angle < 135:
+                if 20 <= delta_angle < 135:
                     turns.right = target_way
+                    turn_count += 1
                 elif 135 <= delta_angle < 225:
                     turns.through = target_way
-                elif 225 <= delta_angle <= 315:
+                    turn_count += 1
+                elif 225 <= delta_angle <= 340:
                     turns.left = target_way
+                    turn_count += 1
 
                 self.turns[way.id] = turns
+
+            if turn_count == 1 and turns.through == None:
+                turns.through = turns.right or turns.left
+                turns.right = turns.left = None

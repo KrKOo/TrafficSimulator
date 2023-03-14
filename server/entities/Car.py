@@ -175,11 +175,19 @@ class Car(SimulationEntity, metaclass=WithId):
             # Turn back if no other option
             if len(next_way_options) == 0:
                 next_way = self.way
-                next_lane = random.choice(
+                next_lanes = (
                     next_way.lanes.backward
                     if self.lane.is_forward
                     else next_way.lanes.forward
                 )
+
+                if len(next_lanes) == 0:
+                    print(
+                        f"Car {self.id} came to the end of the oneway road {self.way.id}, cannot turn back"
+                    )
+                    return
+
+                next_lane = random.choice(next_lanes)
                 print(f"Turning back at crossroad {crossroad.id}")
             else:
                 # TODO: A* instead of random ;)
@@ -187,6 +195,7 @@ class Car(SimulationEntity, metaclass=WithId):
                 next_way = next_way_option.way
                 turn = next_way_option.turn
                 lane_options = crossroad.get_next_lane_options(self.way, next_way)
+                print(turn, next_way.osm_id, lane_options)
                 if self.lane not in lane_options.keys():
                     # TODO: check if the car can switch lanes
                     lane_to_switch = random.choice(list(lane_options.keys()))
