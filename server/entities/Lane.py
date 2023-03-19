@@ -17,11 +17,11 @@ class Lane(EntityBase, metaclass=WithId):
 
     @property
     def last(self):
-        return self.queue[0]
+        return self.queue[0] if len(self.queue) > 0 else None
 
     @property
     def first(self):
-        return self.queue[-1]
+        return self.queue[-1] if len(self.queue) > 0 else None
 
     def put(self, car: SimulationEntity):
         self.queue.insert(0, car)

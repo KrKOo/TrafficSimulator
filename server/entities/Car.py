@@ -4,7 +4,8 @@ import math
 import random
 from .Way import Way
 from .Entity import SimulationEntity, WithId
-from utils import LatLng
+from .Lane import Lane
+from utils import Turn
 
 MIN_GAP = 0.001
 
@@ -34,6 +35,9 @@ class Car(SimulationEntity, metaclass=WithId):
         self.update_time = 0  # in seconds
         self.state = CarState.Crossing
         self.lane.put(self)
+
+        self._next_way = None
+        self._next_lane = None
 
         self.drive_proc = env.process(self.drive())
 
@@ -70,7 +74,9 @@ class Car(SimulationEntity, metaclass=WithId):
         if not self.is_first_in_lane:
             return self.lane.queue[queue_position + 1]
         else:
-            return None
+            if self._next_lane:
+                return self._next_lane.last
+
 
     @property
     def lane_end_time(self) -> float:
@@ -98,8 +104,8 @@ class Car(SimulationEntity, metaclass=WithId):
             return None
 
         if car_ahead.lane == self.lane:
-            return car_ahead.position - self.position - (self.length + MIN_GAP)
-        elif car_ahead.lane == self.lane.next:
+            return car_ahead.position - self.position - (car_ahead.length + MIN_GAP)
+        elif car_ahead.lane == self._next_lane:
             return (
                 car_ahead.position
                 + self.way.length
@@ -113,17 +119,19 @@ class Car(SimulationEntity, metaclass=WithId):
         if distance is None:  # no car ahead
             return math.inf
 
-        if self.speed < self.car_ahead.speed:
+        if self.speed <= self.car_ahead.speed:
             return math.inf
 
         return distance / (self.speed - self.car_ahead.speed)
 
     def drive(self):
         while True:
-            current_queue_position = self.lane.get_car_position(self)
+            next_path = self._get_next_path()
+            self._next_way, self._next_lane, turn = next_path if next_path else (None, None, None)
 
             if self.state == CarState.Crossing:
                 catch_up_time = self.time_to_reach_car_ahead
+                # TODO: Handle the case, when the car comes from a different way
                 if catch_up_time < self.lane_end_time:
                     # time to reach the car ahead
                     yield self.env.timeout(catch_up_time * 3600)
@@ -138,80 +146,92 @@ class Car(SimulationEntity, metaclass=WithId):
                         ) - self.car_ahead.position
                         self.position = self.way.length - size_in_previous_lane
 
-                    self.update_time = self.env.now
                     self.state = CarState.Queued
                     self.speed = self.car_ahead.speed
+
                     print(
                         f"Car {self.id} reached the car ahead {self.car_ahead.id} at {self.env.now} seconds, pos: {self.position} km, ahead_pos: {self.car_ahead.position}, speed: {self.speed} km/h"
                     )
 
             elif self.state == CarState.Queued:
-                self.speed = self.car_ahead.speed
-
-                if self.speed > self.desired_speed:
+                if self.car_ahead is None:
                     self.speed = self.desired_speed
                     self.state = CarState.Crossing
-
                     print(
-                        f"Car {self.id} left the queue at {self.env.now} seconds, car {self.car_ahead.id} is too fast ({self.car_ahead.speed} km/h)"
-                    )
+                            f"Car {self.id} left the queue at {self.env.now} seconds, no car ahead"
+                        )
+                else:
+                    self.speed = self.car_ahead.speed
+
+                    if self.speed > self.desired_speed:
+                        self.speed = self.desired_speed
+                        self.state = CarState.Crossing
+                        print(
+                            f"Car {self.id} left the queue at {self.env.now} seconds, car {self.car_ahead.id} is too fast ({self.car_ahead.speed} km/h)"
+                        )
 
             print(
                 f"Car {self.id} is at {self.way_percentage}% of way {self.way.id}/{self.way.osm_id}, speed: {self.speed} km/h, time: {self.env.now} seconds"
             )
             yield self.env.timeout(self.lane_end_time * 3600)
-            print(
-                f"Car {self.id} reached the end of the way {self.way.id}/{self.way.osm_id} at {self.env.now} seconds, way length: {self.way.length} km, at {self.way_percentage}%"
+            print((
+                f"Car {self.id} reached the end of the way {self.way.id}/{self.way.osm_id} "
+                f"at {self.env.now} seconds, way length: {self.way.length} km, at {self.way_percentage}%, "
+                f"turning: {turn} to way {self._next_way.id if self._next_way else None}/{self._next_way.osm_id if self._next_lane else None}")
             )
 
-            crossroad = (
-                self.way.next_crossroad
-                if self.lane.is_forward
-                else self.way.prev_crossroad
-            )
+            if self._next_lane is None:
+                return
 
-            next_way_options = crossroad.get_next_way_options(self.way)
 
-            # Turn back if no other option
-            if len(next_way_options) == 0:
-                next_way = self.way
-                next_lanes = (
-                    next_way.lanes.backward
-                    if self.lane.is_forward
-                    else next_way.lanes.forward
-                )
+            self.way = self._next_way
 
-                if len(next_lanes) == 0:
-                    print(
-                        f"Car {self.id} came to the end of the oneway road {self.way.id}, cannot turn back"
-                    )
-                    return
-
-                next_lane = random.choice(next_lanes)
-                print(f"Turning back at crossroad {crossroad.id}")
-            else:
-                # TODO: A* instead of random ;)
-                next_way_option = random.choice(next_way_options)
-                next_way = next_way_option.way
-                turn = next_way_option.turn
-                lane_options = crossroad.get_next_lane_options(self.way, next_way)
-                if self.lane not in lane_options.keys():
-                    # TODO: check if the car can switch lanes
-                    lane_to_switch = random.choice(list(lane_options.keys()))
-                    print(
-                        f"Cannot turn, moving to lane {lane_to_switch.id} on way {self.way.id}"
-                    )
-                    self.lane.pop(self)
-                    self.lane = lane_to_switch
-                    self.lane.put(self)
-
-                next_lane = random.choice(lane_options[self.lane])
-                print(
-                    f"Crossroad {crossroad.id}, FROM way - {self.way.id}/{self.way.osm_id}, lane - {self.lane.id} TO way - {next_way.id}, lane - {next_lane.id}, TURN - {turn}"
-                )
-
-            self.way = next_way
             self.lane.pop(self)
-            self.lane = next_lane
+            self.lane = self._next_lane
             self.lane.put(self)
+
             self.position = 0
+
+    def _get_next_path(self) -> tuple[Way, Lane, Turn]:
+        crossroad = (
+            self.way.next_crossroad
+            if self.lane.is_forward
+            else self.way.prev_crossroad
+        )
+
+        next_way_options = crossroad.get_next_way_options(self.way)
+        turn = None
+
+        # Turn back if no other option
+        if len(next_way_options) == 0:
+            next_way = self.way
+            next_lanes = (
+                next_way.lanes.backward
+                if self.lane.is_forward
+                else next_way.lanes.forward
+            )
+
+            if len(next_lanes) == 0:
+                return None
+
+            next_lane = random.choice(next_lanes)
+            print(f"Turning back at crossroad {crossroad.id}")
+        else:
+            next_way_option = random.choice(next_way_options)
+            next_way = next_way_option.way
+            turn = next_way_option.turn
+            lane_options = crossroad.get_next_lane_options(self.way, next_way)
+            if self.lane not in lane_options.keys():
+                # TODO: check if the car can switch lanes
+                lane_to_switch = random.choice(list(lane_options.keys()))
+                print(
+                    f"Cannot turn, moving to lane {lane_to_switch.id} on way {self.way.id}"
+                )
+                self.lane.pop(self)
+                self.lane = lane_to_switch
+                self.lane.put(self)
+
+            next_lane = random.choice(lane_options[self.lane])
+
+
+        return next_way, next_lane, turn
