@@ -4,6 +4,8 @@ import math
 import random
 from .Way import Way
 from .Entity import SimulationEntity, WithId
+from .Event import Event, EventType
+from .Calendar import Calendar
 from .Lane import Lane
 from utils import Turn
 
@@ -19,6 +21,7 @@ class Car(SimulationEntity, metaclass=WithId):
     def __init__(
         self,
         env: simpy.Environment,
+        calendar: Calendar,
         way: Way,
         lane_id: int,
         speed: int,
@@ -26,6 +29,7 @@ class Car(SimulationEntity, metaclass=WithId):
     ):
         SimulationEntity.__init__(self, env)
         self.id = next(self._ids)
+        self.calendar = calendar
         self.way = way
         self.lane = way.lanes[lane_id]
         self.desired_speed = speed  # in km/h
@@ -126,6 +130,8 @@ class Car(SimulationEntity, metaclass=WithId):
 
     def drive(self):
         while True:
+            self.calendar_car_update()
+
             next_path = self._get_next_path()
             self._next_way, self._next_lane, turn = next_path if next_path else (None, None, None)
 
@@ -148,41 +154,29 @@ class Car(SimulationEntity, metaclass=WithId):
 
                     self.state = CarState.Queued
                     self.speed = self.car_ahead.speed
-
-                    print(
-                        f"Car {self.id} reached the car ahead {self.car_ahead.id} at {self.env.now} seconds, pos: {self.position} km, ahead_pos: {self.car_ahead.position}, speed: {self.speed} km/h"
-                    )
+                    self.calendar_car_update()
 
             elif self.state == CarState.Queued:
                 if self.car_ahead is None:
                     self.speed = self.desired_speed
                     self.state = CarState.Crossing
-                    print(
-                            f"Car {self.id} left the queue at {self.env.now} seconds, no car ahead"
-                        )
+
+                    self.calendar_car_update()
                 else:
                     self.speed = self.car_ahead.speed
 
                     if self.speed > self.desired_speed:
                         self.speed = self.desired_speed
                         self.state = CarState.Crossing
-                        print(
-                            f"Car {self.id} left the queue at {self.env.now} seconds, car {self.car_ahead.id} is too fast ({self.car_ahead.speed} km/h)"
-                        )
 
-            print(
-                f"Car {self.id} is at {self.way_percentage}% of way {self.way.id}/{self.way.osm_id}, speed: {self.speed} km/h, time: {self.env.now} seconds"
-            )
+                        self.calendar_car_update()
+
             yield self.env.timeout(self.lane_end_time * 3600)
-            print((
-                f"Car {self.id} reached the end of the way {self.way.id}/{self.way.osm_id} "
-                f"at {self.env.now} seconds, way length: {self.way.length} km, at {self.way_percentage}%, "
-                f"turning: {turn} to way {self._next_way.id if self._next_way else None}/{self._next_way.osm_id if self._next_lane else None}")
-            )
+
+            self.calendar_car_update()
 
             if self._next_lane is None:
                 return
-
 
             self.way = self._next_way
 
@@ -215,7 +209,6 @@ class Car(SimulationEntity, metaclass=WithId):
                 return None
 
             next_lane = random.choice(next_lanes)
-            print(f"Turning back at crossroad {crossroad.id}")
         else:
             next_way_option = random.choice(next_way_options)
             next_way = next_way_option.way
@@ -224,9 +217,9 @@ class Car(SimulationEntity, metaclass=WithId):
             if self.lane not in lane_options.keys():
                 # TODO: check if the car can switch lanes
                 lane_to_switch = random.choice(list(lane_options.keys()))
-                print(
-                    f"Cannot turn, moving to lane {lane_to_switch.id} on way {self.way.id}"
-                )
+
+                self.calendar_car_update()
+
                 self.lane.pop(self)
                 self.lane = lane_to_switch
                 self.lane.put(self)
@@ -235,3 +228,6 @@ class Car(SimulationEntity, metaclass=WithId):
 
 
         return next_way, next_lane, turn
+
+    def calendar_car_update(self):
+        self.calendar.add_event(Event(EventType.CarUpdate, self.id, self.way.id, self.lane.id, self.position, self.speed))

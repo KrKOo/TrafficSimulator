@@ -8,6 +8,7 @@ matplotlib = "*"
 osmium = "*"
 simpy = "*"
 pyqt5 = "*"
+flask = "*"
 
 [dev-packages]
 

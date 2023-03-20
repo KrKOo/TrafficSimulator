@@ -3,24 +3,34 @@ import simpy
 import random
 
 from modules import Parser
-from entities import Car
+from entities import Car, Calendar
 from utils import plot
 
+from api.app import app
 
 if __name__ == "__main__":
     random.seed(0)
-    env = simpy.Environment()
 
-    parser = Parser(env)
+    app.run()
 
-    parser.apply_file("data/clean_lipuvka.osm")
-    parser.init_crossroads()
+    # env = simpy.Environment()
 
-    car1 = Car(env, parser.ways[13], 0, 50)
-    car2 = Car(env, parser.ways[14], 0, 30)
+    # parser = Parser(env)
 
-    env.run(until=100000)
+    # parser.apply_file("data/clean_brno.osm")
+    # parser.init_crossroads()
 
-    plot.plot_ways(plt, parser.ways)
-    plot.plot_crossroads(plt, parser.crossroads)
-    plt.show()
+
+    # calendar = Calendar(env)
+
+    # for i in range(1000):
+    #     Car(env, calendar, parser.ways[i%100], 0, 30)
+
+    # env.run(until=50000)
+
+    # with open("out.sim", "wb") as outfile:
+    #     outfile.write(calendar.pack())
+
+    # plot.plot_ways(plt, parser.ways)
+    # plot.plot_crossroads(plt, parser.crossroads)
+    # plt.show()
