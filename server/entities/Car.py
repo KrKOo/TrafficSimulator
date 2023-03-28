@@ -7,6 +7,7 @@ from .Entity import SimulationEntity, WithId
 from .Event import Event, EventType
 from .Calendar import Calendar
 from .Lane import Lane
+from .Crossroad import Crossroad
 from utils import Turn
 
 MIN_GAP = 0.001
@@ -15,6 +16,7 @@ MIN_GAP = 0.001
 class CarState(Enum):
     Crossing = 1
     Queued = 2
+    Waiting = 3
 
 
 class Car(SimulationEntity, metaclass=WithId):
@@ -33,7 +35,7 @@ class Car(SimulationEntity, metaclass=WithId):
         self.way = way
         self.lane = way.lanes[lane_id]
         self.desired_speed = speed  # in km/h
-        self.speed = speed  # in km/h
+        self._speed = speed  # in km/h
         self.length = length  # in km
         self._position = 0  # in km
         self.update_time = 0  # in seconds
@@ -42,8 +44,23 @@ class Car(SimulationEntity, metaclass=WithId):
 
         self._next_way = None
         self._next_lane = None
+        self._next_turn = None
+
+        next_path = self._get_next_path()
+        self._next_way, self._next_lane, self._next_turn = (
+            next_path if next_path else (None, None, None)
+        )
 
         self.drive_proc = env.process(self.drive())
+
+        self.calendar_car_update()
+
+    def __repr__(self):
+        return (
+            f"Car id: {self.id} way: {self.way.id}, lane: {self.lane.id}, position: {self.position}, speed: {self.speed}, "
+            f"state: {self.state}, next_way: {self._next_way.id if self._next_way else None}, next_lane: {self._next_lane.id if self._next_lane else None}, "
+            f"car_ahead: {self.car_ahead.id if self.car_ahead else None}, car_behind: {self.car_behind.id if self.car_behind else None}"
+        )
 
     @property
     def position(self) -> float:
@@ -53,6 +70,22 @@ class Car(SimulationEntity, metaclass=WithId):
     def position(self, value):
         self._position = value
         self.update_time = self.env.now
+
+    @property
+    def speed(self) -> int:
+        return self._speed
+
+    @speed.setter
+    def speed(self, value):
+        self._speed = value
+
+        if self.car_behind and self.car_behind.state == CarState.Queued:
+            car_behind = self.car_behind
+            car_behind.speed = value
+            if car_behind.speed > car_behind.desired_speed:
+                car_behind.speed = car_behind.desired_speed
+                car_behind.state = CarState.Crossing
+                self.drive()
 
     @property
     def way_percentage(self) -> float:
@@ -66,21 +99,23 @@ class Car(SimulationEntity, metaclass=WithId):
 
     @property
     def is_first_in_lane(self) -> bool:
-        queue_position = self.lane.get_car_position(self)
-        if queue_position == len(self.lane.queue) - 1:
-            return True
-        return False
+        return self == self.lane.first
 
-    # TODO: check for cars behind the crossroad
+    @property
+    def is_last_in_lane(self) -> bool:
+        return self == self.lane.last
+
     @property
     def car_ahead(self) -> "Car":
         queue_position = self.lane.get_car_position(self)
         if not self.is_first_in_lane:
             return self.lane.queue[queue_position + 1]
-        else:
-            if self._next_lane:
-                return self._next_lane.last
 
+    @property
+    def car_behind(self) -> "Car":
+        queue_position = self.lane.get_car_position(self)
+        if not self.is_last_in_lane:
+            return self.lane.queue[queue_position - 1]
 
     @property
     def lane_end_time(self) -> float:
@@ -108,14 +143,8 @@ class Car(SimulationEntity, metaclass=WithId):
             return None
 
         if car_ahead.lane == self.lane:
-            return car_ahead.position - self.position - (car_ahead.length + MIN_GAP)
-        elif car_ahead.lane == self._next_lane:
-            return (
-                car_ahead.position
-                + self.way.length
-                - self.position
-                - (car_ahead.length + MIN_GAP)
-            )
+            # return car_ahead.position - self.position - (car_ahead.length + MIN_GAP)
+            return car_ahead.position - self.position  # TODO: FIX
 
     @property
     def time_to_reach_car_ahead(self) -> float:
@@ -128,70 +157,76 @@ class Car(SimulationEntity, metaclass=WithId):
 
         return distance / (self.speed - self.car_ahead.speed)
 
+    @property
+    def next_crossroad(self) -> Crossroad:
+        return (
+            self.way.next_crossroad if self.lane.is_forward else self.way.prev_crossroad
+        )
+
     def drive(self):
         while True:
-            self.calendar_car_update()
-
-            next_path = self._get_next_path()
-            self._next_way, self._next_lane, turn = next_path if next_path else (None, None, None)
-
             if self.state == CarState.Crossing:
                 catch_up_time = self.time_to_reach_car_ahead
-                # TODO: Handle the case, when the car comes from a different way
+
                 if catch_up_time < self.lane_end_time:
                     # time to reach the car ahead
                     yield self.env.timeout(catch_up_time * 3600)
-
-                    if self.car_ahead.lane == self.lane:
-                        self.position = self.car_ahead.position - (
-                            self.car_ahead.length + MIN_GAP
-                        )
-                    else:
-                        size_in_previous_lane = (
-                            self.car_ahead.length + MIN_GAP
-                        ) - self.car_ahead.position
-                        self.position = self.way.length - size_in_previous_lane
+                    self.position = self.position + catch_up_time * self.speed
 
                     self.state = CarState.Queued
-                    self.speed = self.car_ahead.speed
-                    self.calendar_car_update()
-
-            elif self.state == CarState.Queued:
-                if self.car_ahead is None:
-                    self.speed = self.desired_speed
-                    self.state = CarState.Crossing
-
-                    self.calendar_car_update()
+                    break
                 else:
-                    self.speed = self.car_ahead.speed
+                    yield self.env.timeout(self.lane_end_time * 3600)
+                    self.position = self.way.length
+                    self.state = CarState.Waiting
+                    self.speed = 0
 
-                    if self.speed > self.desired_speed:
-                        self.speed = self.desired_speed
-                        self.state = CarState.Crossing
+                self.calendar_car_update()
+            elif self.state == CarState.Waiting:
+                if self._next_lane is None:
+                    return
 
-                        self.calendar_car_update()
+                wait_start = self.env.now
+                blockers = self.next_crossroad.get_conflicting_lane_blockers(
+                    (self.way, self.lane), (self._next_way, self._next_lane)
+                )
 
-            yield self.env.timeout(self.lane_end_time * 3600)
+                blocker_requests = [blocker.request() for blocker in blockers]
 
-            self.calendar_car_update()
+                for blocker_request in blocker_requests:
+                    yield blocker_request
 
-            if self._next_lane is None:
-                return
+                wait_end = self.env.now
 
-            self.way = self._next_way
+                if wait_end - wait_start > 0:
+                    print("WAITED on crossroad: ", wait_end - wait_start)
 
-            self.lane.pop(self)
-            self.lane = self._next_lane
-            self.lane.put(self)
+                self.way = self._next_way
 
-            self.position = 0
+                self.lane.pop(self)
+                self.lane = self._next_lane
+                self.lane.put(self)
+
+                yield self.env.timeout(10)  # passing the crossroad
+
+                for idx, blocker in enumerate(blockers):
+                    blocker.release(blocker_requests[idx])
+
+                self.position = 0
+                self.speed = (
+                    self.desired_speed
+                )  # TODO: check if there is free space after the crossroad
+                self.state = CarState.Crossing
+
+                next_path = self._get_next_path()
+                self._next_way, self._next_lane, self._next_turn = (
+                    next_path if next_path else (None, None, None)
+                )
+
+                self.calendar_car_update()
 
     def _get_next_path(self) -> tuple[Way, Lane, Turn]:
-        crossroad = (
-            self.way.next_crossroad
-            if self.lane.is_forward
-            else self.way.prev_crossroad
-        )
+        crossroad = self.next_crossroad
 
         next_way_options = crossroad.get_next_way_options(self.way)
         turn = None
@@ -226,8 +261,16 @@ class Car(SimulationEntity, metaclass=WithId):
 
             next_lane = random.choice(lane_options[self.lane])
 
-
         return next_way, next_lane, turn
 
     def calendar_car_update(self):
-        self.calendar.add_event(Event(EventType.CarUpdate, self.id, self.way.id, self.lane.id, self.position, self.speed))
+        self.calendar.add_event(
+            Event(
+                EventType.CarUpdate,
+                self.id,
+                self.way.id,
+                self.lane.id,
+                self.position,
+                self.speed,
+            )
+        )

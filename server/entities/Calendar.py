@@ -14,5 +14,7 @@ class Calendar:
         self.events.append(event)
 
     def pack(self):
-
         return b''.join([event.pack() for event in self.events])
+
+    def get_data(self):
+        return [event.get_data() for event in self.events]

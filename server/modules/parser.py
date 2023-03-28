@@ -1,5 +1,5 @@
 import osmium
-from utils import LatLng, str_to_int, Turn
+from utils import LatLng, str_to_int, Turn, HighwayClass
 from entities import Way, WayLanesProps, Crossroad, Node
 
 
@@ -16,12 +16,13 @@ class Parser(osmium.SimpleHandler):
 
     def way(self, w: osmium.osm.Way):
         maxspeed = str_to_int(w.tags.get("maxspeed", "50"), 50)
+        highway_class = HighwayClass[w.tags.get("highway", "unclassified")]
 
         nodes = [self._nodes[node.ref] for node in w.nodes]
 
         lanes = self._parse_lanes(w)
 
-        new_way = Way(maxspeed, lanes, nodes, w.id)
+        new_way = Way(maxspeed, highway_class, lanes, nodes, w.id)
         self.ways.append(new_way)
 
     def init_crossroads(self):
@@ -75,7 +76,7 @@ class Parser(osmium.SimpleHandler):
     def _create_or_update_crossroad_on_node(self, node: Node) -> Crossroad:
         crossroad = self._get_crossroad(node.id)
         if crossroad is None:
-            crossroad = Crossroad(node)
+            crossroad = Crossroad(self.env, node)
             self.crossroads.append(crossroad)
 
             way_with_node_in_middle = self._get_way_with_node_in_middle(node)

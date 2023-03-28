@@ -17,3 +17,14 @@ class Event:
         data = struct.pack("!fIIIff", self.time, self.car_id, self.way_id, self.lane_id, self.position, self.speed)
 
         return data
+
+    def get_data(self):
+        return {
+            "time": self.time,
+            "type": self.type.name,
+            "car_id": self.car_id,
+            "way_id": self.way_id,
+            "lane_id": self.lane_id,
+            "position": self.position,
+            "speed": self.speed,
+        }

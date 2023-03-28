@@ -1,4 +1,4 @@
-from utils import Turn
+from utils import Turn, HighwayClass
 from .Node import Node
 from .Road import Road
 from .Lane import Lane
@@ -41,6 +41,7 @@ class Way(EntityBase, metaclass=WithId):
     def __init__(
         self,
         max_speed: int,
+        highway_class: HighwayClass,
         lanes_props: WayLanesProps,
         nodes: list[Node] = None,
         osm_id: int = None,
@@ -48,6 +49,7 @@ class Way(EntityBase, metaclass=WithId):
         super().__init__()
         self.id = next(self._ids)
         self.osm_id = osm_id
+        self.highway_class = highway_class
         self.max_speed = max_speed
         self.lane_props = lanes_props
         self.lanes = self._init_lanes(lanes_props)
@@ -79,7 +81,7 @@ class Way(EntityBase, metaclass=WithId):
             if self not in node.ways:
                 node.add_way(self)
 
-    def _init_lanes(self, lanes_props) -> WayLanes:
+    def _init_lanes(self, lanes_props: WayLanesProps) -> WayLanes:
         if lanes_props.forward_lane_turn is None:
             forward_lanes = [Lane(True) for _ in range(lanes_props.forward_lane_count)]
         else:
@@ -133,7 +135,7 @@ class Way(EntityBase, metaclass=WithId):
             self.lane_props.backward_lane_count,
         )
 
-        new_way = Way(self.max_speed, new_way_lane_props, new_way_nodes, self.osm_id)
+        new_way = Way(self.max_speed, self.highway_class,new_way_lane_props, new_way_nodes, self.osm_id)
 
         new_way.prev_crossroad = self.prev_crossroad
         self.prev_crossroad = None

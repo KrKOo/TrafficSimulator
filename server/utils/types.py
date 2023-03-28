@@ -7,6 +7,25 @@ class LatLng:
         self.lng = lng
 
 
+HighwayClass = Enum(
+    "HighwayClass",
+    [
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary",
+        "tertiary",
+        "unclassified",
+        "residential",
+        "service",
+        "motorway_link",
+        "trunk_link",
+        "primary_link",
+        "secondary_link",
+        "tertiary_link",
+    ],
+)
+
 Turn = Enum(
     "Turn",
     [

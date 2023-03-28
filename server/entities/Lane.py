@@ -11,7 +11,7 @@ class Lane(EntityBase, metaclass=WithId):
         super().__init__()
         self.id = next(self._ids)
         self.is_forward = is_forward
-        self.turns = turns
+        self.turns = turns if turns is not None else []
 
         self.queue = []
 
