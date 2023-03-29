@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from utils import plot, LatLng, HighwayClass
 
 from entities import Car, Way, WayLanesProps, Node, Crossroad, Calendar
-import random
+import json
 
 
 def get_roadnet(env: simpy.Environment):
@@ -40,9 +40,14 @@ if __name__ == "__main__":
 
     car1 = Car(env, calendar, ways[0], 0, 50)
     car2 = Car(env, calendar, ways[1], 0, 10)
-    car2 = Car(env, calendar, ways[2], 0, 30)
+    car3 = Car(env, calendar, ways[2], 0, 30)
+
+    print(ways[0].length, ways[1].length, ways[2].length)
 
     env.run(until=100000)
+
+    # with open("out.json", "w") as outfile:
+    #     outfile.write(json.dumps(calendar.get_data()))
 
     plot.plot_ways(plt, ways)
     plot.plot_crossroads(plt, crossroads)

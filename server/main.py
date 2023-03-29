@@ -23,11 +23,11 @@ if __name__ == "__main__":
 
     calendar = Calendar(env)
 
-    for i in range(100):
+    for i in range(10):
         speed = random.randint(10, 60)
         Car(env, calendar, parser.ways[i], 0, speed)
 
-    env.run(until=50000)
+    env.run(until=100000)
 
     # with open("out.sim", "wb") as outfile:
     #     outfile.write(calendar.pack())
