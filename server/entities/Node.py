@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from entities import Way
 
+
 class Node:
     def __init__(self, id: int, pos: LatLng, ways: list["Way"] = None):
         self.id = id

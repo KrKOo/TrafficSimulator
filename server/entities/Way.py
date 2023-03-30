@@ -135,10 +135,17 @@ class Way(EntityBase, metaclass=WithId):
             self.lane_props.backward_lane_count,
         )
 
-        new_way = Way(self.max_speed, self.highway_class,new_way_lane_props, new_way_nodes, self.osm_id)
+        new_way = Way(
+            self.max_speed,
+            self.highway_class,
+            new_way_lane_props,
+            new_way_nodes,
+            self.osm_id,
+        )
 
         new_way.prev_crossroad = self.prev_crossroad
         self.prev_crossroad = None
+        self.next_crossroad = self.next_crossroad  # in case the way is a loop
 
         return new_way
 

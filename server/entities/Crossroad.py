@@ -300,6 +300,7 @@ class Crossroad(EntityBase, metaclass=WithId):
     # TODO: what if there are more ways to the same direction?
     def _update_turns(self):
         way_angle = self._get_way_angles()
+        self.turns = {}
 
         for way in self._ways:
             this_way_angle = way_angle[way]
@@ -320,8 +321,8 @@ class Crossroad(EntityBase, metaclass=WithId):
                     turns.left = target_way
                     turn_count += 1
 
-                self.turns[way.id] = turns
-
             if turn_count == 1 and turns.through == None:
                 turns.through = turns.right or turns.left
                 turns.right = turns.left = None
+
+            self.turns[way.id] = turns

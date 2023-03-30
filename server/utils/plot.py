@@ -35,6 +35,7 @@ def plot_ways(plt: matplotlib.pyplot, ways: list[Way]):
                     va="center",
                 )
 
+
 def plot_crossroads(plt: matplotlib.pyplot, crossroads: list[Crossroad]):
     for crossroad in crossroads:
         plt.plot(crossroad.node.pos.lng, crossroad.node.pos.lat, "bo")

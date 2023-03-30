@@ -7,6 +7,7 @@ from entities import Calendar, Car
 
 app = Flask(__name__)
 
+
 @app.route("/")
 def hello_world():
     env = simpy.Environment()
@@ -27,7 +28,6 @@ def hello_world():
     print("Done.")
 
     response = Response(calendar.pack())
-    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers["Access-Control-Allow-Origin"] = "*"
 
     return response
-

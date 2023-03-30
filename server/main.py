@@ -18,12 +18,11 @@ if __name__ == "__main__":
 
     parser = Parser(env)
 
-    parser.apply_file("data/clean_lipuvka.osm")
+    parser.apply_file("data/clean_brno.pbf")
     parser.init_crossroads()
-
     calendar = Calendar(env)
 
-    for i in range(10):
+    for i in range(100):
         speed = random.randint(10, 60)
         Car(env, calendar, parser.ways[i], 0, speed)
 
