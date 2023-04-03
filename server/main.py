@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     parser = Parser(env)
 
-    parser.apply_file("data/clean_brno.pbf")
+    parser.apply_file("data/clean_lipuvka.osm")
     parser.init_crossroads()
     calendar = Calendar(env)
 

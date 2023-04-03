@@ -62,7 +62,7 @@ class Parser(osmium.SimpleHandler):
             return None
         turns = turns_str.split("|")
         turns = [turn.split(";") for turn in turns]
-        turns = [[Turn[turn] for turn in lane_turns] for lane_turns in turns]
+        turns = [[Turn[turn] for turn in lane_turns if turn] for lane_turns in turns]
 
         return turns
 

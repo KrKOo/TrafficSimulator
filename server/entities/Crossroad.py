@@ -26,6 +26,9 @@ class CrossroadTurn:
         self.left = left
         self.right = right
 
+    def __repr__(self) -> str:
+        return f"CrossroadTurn(through={self.through.id if self.through else None}, left={self.left.id if self.left else None}, right={self.right.id if self.right else None})"
+
 
 class Crossroad(EntityBase, metaclass=WithId):
     def __init__(self, env: simpy.Environment, node: Node):
@@ -76,7 +79,7 @@ class Crossroad(EntityBase, metaclass=WithId):
         blockers = collections.defaultdict(dict[int, simpy.Resource])
 
         for way in self._ways:
-            for lane in self._get_in_lanes(way):
+            for lane in self._get_in_lanes(way): # TODO: blockers for all lanes (in/out)
                 blockers[way.id][lane.id] = simpy.Resource(self.env, 1)
 
         self.blockers = blockers
@@ -312,13 +315,44 @@ class Crossroad(EntityBase, metaclass=WithId):
                 delta_angle = (angle - this_way_angle) % 360
 
                 if 20 <= delta_angle < 135:
-                    turns.right = target_way
+                    if turns.right and way_angle[turns.right] > delta_angle:
+                        turns.through = turns.right
+                        turns.right = target_way
+                    elif turns.right and way_angle[turns.right] < delta_angle:
+                        turns.through = target_way
+                    else:
+                        turns.right = target_way
+
                     turn_count += 1
                 elif 135 <= delta_angle < 225:
-                    turns.through = target_way
+                    if turns.through:
+                        old_diff = way_angle[turns.through] - 180
+                        new_diff = delta_angle - 180
+
+                        if abs(old_diff) < abs(new_diff):
+                            if new_diff > 0:
+                                turns.left = target_way
+                            else:
+                                turns.right = target_way
+                        else:
+                            if old_diff > 0:
+                                turns.left = turns.through
+                            else:
+                                turns.right = turns.through
+
+                            turns.through = target_way
+                    else:
+                        turns.through = target_way
                     turn_count += 1
                 elif 225 <= delta_angle <= 340:
-                    turns.left = target_way
+                    if turns.left and way_angle[turns.left] < delta_angle:
+                        turns.through = turns.left
+                        turns.left = target_way
+                    elif turns.left and way_angle[turns.left] > delta_angle:
+                        turns.through = target_way
+                    else:
+                        turns.left = target_way
+
                     turn_count += 1
 
             if turn_count == 1 and turns.through == None:
