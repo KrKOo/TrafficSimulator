@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 import math
 import simpy
 import collections
+import struct
 
 from .Node import Node
 from .Lane import Lane
@@ -57,6 +58,10 @@ class Crossroad(EntityBase, metaclass=WithId):
             f"Turns: {way_turns}"
         )
         return text
+
+    def pack(self):
+        crossroad_struct = struct.Struct("!IQ")
+        return crossroad_struct.pack(self.id, self.node.id)
 
     @property
     def ways(self) -> list[Way]:

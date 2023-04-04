@@ -1,7 +1,7 @@
 import osmium
 from utils import LatLng, str_to_int, Turn, HighwayClass
 from entities import Way, WayLanesProps, Crossroad, Node
-
+import struct
 
 class Parser(osmium.SimpleHandler):
     def __init__(self, env):
@@ -28,6 +28,12 @@ class Parser(osmium.SimpleHandler):
     def init_crossroads(self):
         for way in self.ways:
             self._init_way_crossroads(way)
+
+    def pack(self):
+        ways_list = [way.pack() for way in self.ways]
+        crossroads_list = [crossroad.pack() for crossroad in self.crossroads]
+
+        return struct.pack("!II", len(ways_list), len(crossroads_list)) + b"".join(ways_list) + b"".join(crossroads_list)
 
     def _parse_lanes(self, w: osmium.osm.Way) -> WayLanesProps:
         lane_count = str_to_int(w.tags.get("lanes", "0"), 0)

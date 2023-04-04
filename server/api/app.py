@@ -10,11 +10,13 @@ app = Flask(__name__)
 
 @app.route("/")
 def hello_world():
+    random.seed(0)
     env = simpy.Environment()
     parser = Parser(env)
 
-    parser.apply_file("data/clean_brno.osm")
+    parser.apply_file("data/clean_lipuvka.osm")
     parser.init_crossroads()
+
     print("Roadnet parsed.")
     calendar = Calendar(env)
 
@@ -27,7 +29,7 @@ def hello_world():
     env.run(until=50000)
     print("Done.")
 
-    response = Response(calendar.pack())
+    response = Response(parser.pack() + calendar.pack())
     response.headers["Access-Control-Allow-Origin"] = "*"
 
     return response

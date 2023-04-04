@@ -12,21 +12,21 @@ from api.app import app
 if __name__ == "__main__":
     random.seed(0)
 
-    # app.run()
+    app.run()
 
-    env = simpy.Environment()
+    # env = simpy.Environment()
 
-    parser = Parser(env)
+    # parser = Parser(env)
 
-    parser.apply_file("data/clean_lipuvka.osm")
-    parser.init_crossroads()
-    calendar = Calendar(env)
+    # parser.apply_file("data/clean_lipuvka.osm")
+    # parser.init_crossroads()
+    # calendar = Calendar(env)
 
-    for i in range(100):
-        speed = random.randint(10, 60)
-        Car(env, calendar, parser.ways[i], 0, speed)
+    # for i in range(100):
+    #     speed = random.randint(10, 60)
+    #     Car(env, calendar, parser.ways[i], 0, speed)
 
-    env.run(until=100000)
+    # env.run(until=100000)
 
     # with open("out.sim", "wb") as outfile:
     #     outfile.write(calendar.pack())
