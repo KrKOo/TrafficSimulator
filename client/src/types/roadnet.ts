@@ -1,3 +1,8 @@
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
 export enum Turns {
   none = 0,
   left,
@@ -12,8 +17,8 @@ export enum Turns {
 export interface Event {
   time: number;
   car_id: number;
-  way_id: number;
-  lane_id: number;
+  way: Way;
+  lane: Lane;
   position: number;
   speed: number;
 }
@@ -28,6 +33,7 @@ export interface Lane {
   id: number;
   is_forward: boolean;
   turns: Turns[];
+  length: number;
 }
 
 export interface Way {

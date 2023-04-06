@@ -14,14 +14,14 @@ def hello_world():
     env = simpy.Environment()
     parser = Parser(env)
 
-    parser.apply_file("data/clean_lipuvka.osm")
+    parser.apply_file("data/clean_brno.osm")
     parser.init_crossroads()
 
     print("Roadnet parsed.")
     calendar = Calendar(env)
 
-    for i in range(100):
-        speed = random.randint(10, 60)
+    for i in range(900):
+        speed = random.randint(10, 50)
         Car(env, calendar, parser.ways[i], 0, speed)
     print("Cars spawned.")
 

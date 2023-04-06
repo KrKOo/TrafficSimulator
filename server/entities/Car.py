@@ -101,8 +101,8 @@ class Car(SimulationEntity, metaclass=WithId):
         """Return the percentage of the way the car is on"""
         p = self.position / self.way.length
 
-        if self.lane.is_forward == False:
-            p = 1 - p
+        # if self.lane.is_forward == False:
+        #     p = 1 - p
 
         return abs(round(p * 100, 4))
 
@@ -157,7 +157,9 @@ class Car(SimulationEntity, metaclass=WithId):
     @property
     def time_to_reach_car_ahead(self) -> float:
         distance = self.distance_to_car_ahead
-        print(f"Car {self.id} Distance to car ahead: {distance}, car ahead speed: {self.car_ahead.speed}, car ahead pos: {self.car_ahead.position}, car behind pos: {self.position}")
+        print(
+            f"Car {self.id} Distance to car ahead: {distance}, car ahead speed: {self.car_ahead.speed}, car ahead pos: {self.car_ahead.position}, car behind pos: {self.position}"
+        )
         if distance is None:  # no car ahead
             return math.inf
 
@@ -181,6 +183,9 @@ class Car(SimulationEntity, metaclass=WithId):
                 )
 
                 if not self.is_first_in_lane:
+                    if self.time_to_reach_car_ahead < 0:
+                        return
+
                     crossing_timeout = self.env.timeout(
                         self.time_to_reach_car_ahead * 3600
                     )
@@ -266,7 +271,9 @@ class Car(SimulationEntity, metaclass=WithId):
                         self.car_behind.car_ahead_updated_event
                         and not self.car_behind.car_ahead_updated_event.triggered
                     ):
-                        print(f"Car {self.id} leaving crossroad and waking up car {self.car_behind.id}")
+                        print(
+                            f"Car {self.id} leaving crossroad and waking up car {self.car_behind.id}"
+                        )
                         self.car_behind.car_ahead_updated_event.succeed()
 
                 print(
@@ -337,7 +344,7 @@ class Car(SimulationEntity, metaclass=WithId):
                 self.id,
                 self.way.id,
                 self.lane.id,
-                self.position,
+                self.way_percentage,
                 self.speed,
             )
         )
