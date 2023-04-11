@@ -6,9 +6,16 @@ if TYPE_CHECKING:
 
 
 class Node:
-    def __init__(self, id: int, pos: LatLng, ways: list["Way"] = None):
+    def __init__(
+        self,
+        id: int,
+        pos: LatLng,
+        has_traffic_light: bool = False,
+        ways: list["Way"] = None,
+    ):
         self.id = id
         self.pos = pos
+        self.has_traffic_light = has_traffic_light
         self._ways: list["Way"] = [] if ways is None else ways
 
     @property

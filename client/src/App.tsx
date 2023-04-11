@@ -31,8 +31,8 @@ const App = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setSliderTime((seconds) => seconds + 3);
-    }, 300);
+      setSliderTime((seconds) => seconds + 0.1);
+    }, 100);
     return () => clearInterval(interval);
   }, []);
 

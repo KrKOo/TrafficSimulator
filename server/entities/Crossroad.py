@@ -64,6 +64,10 @@ class Crossroad(EntityBase, metaclass=WithId):
         return crossroad_struct.pack(self.id, self.node.id)
 
     @property
+    def has_traffic_light(self):
+        return self.node.has_traffic_light
+
+    @property
     def ways(self) -> list[Way]:
         return self._ways
 
@@ -80,20 +84,22 @@ class Crossroad(EntityBase, metaclass=WithId):
         self._update_blockers()
 
     def _update_blockers(self):
-        # blockers: dict[int, dict[int, simpy.Resource]] =
         blockers = collections.defaultdict(dict[int, simpy.Resource])
 
         for way in self._ways:
-            for lane in self._get_in_lanes(way): # TODO: blockers for all lanes (in/out)
+            for lane in way.lanes:
                 blockers[way.id][lane.id] = simpy.Resource(self.env, 1)
 
         self.blockers = blockers
 
     def get_conflicting_lane_blockers(
-        self, from_way_lane: tuple(Way, Lane), to_way_lane: tuple(Way, Lane)
-    ) -> list(simpy.Resource):
+        self, from_way_lane: tuple[Way, Lane], to_way_lane: tuple[Way, Lane]
+    ) -> list[simpy.Resource]:
         turn_direction = self._get_way_turn(from_way_lane[0], to_way_lane[0])
-        res_blockers: list(simpy.Resource) = []
+        res_blockers: list[simpy.Resource] = []
+
+        res_blockers.append(self.blockers[from_way_lane[0].id][from_way_lane[1].id])
+        res_blockers.append(self.blockers[to_way_lane[0].id][to_way_lane[1].id])
 
         if (
             turn_direction == None and from_way_lane[0].id == to_way_lane[0]

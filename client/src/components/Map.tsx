@@ -186,7 +186,7 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
         url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
       />
       {lanes.map((lane, key) => {
-        return <Polyline key={key} positions={lane} />;
+        return <Polyline key={key} positions={lane} dashOffset='50' />;
       })}
 
       {cars?.map((car, key) => {

@@ -1,5 +1,6 @@
 from enum import Enum
 import simpy
+from simpy.util import start_delayed
 import math
 import random
 from .Way import Way
@@ -11,6 +12,9 @@ from .Crossroad import Crossroad
 from utils import Turn
 
 MIN_GAP = 0.001
+CROSSROAD_BLOCKING_TIME = (
+    3  # block the crossroad when the car will reach it in this time
+)
 
 
 class CarState(Enum):
@@ -50,6 +54,11 @@ class Car(SimulationEntity, metaclass=WithId):
         self._next_way, self._next_lane, self._next_turn = (
             next_path if next_path else (None, None, None)
         )
+
+        self._crossroad_blockers: simpy.Resource = []
+        self._blocker_requests: simpy.Request = []
+        self._crossroad_blocked = False
+        self._crossroad_unblock_proc = None
 
         self.dequeue_event: simpy.Event = None
         self.crossing_end_event: simpy.Event = None
@@ -96,6 +105,23 @@ class Car(SimulationEntity, metaclass=WithId):
             ):
                 self.car_behind.car_ahead_updated_event.succeed()
 
+        if self._crossroad_blocked:
+            if self._crossroad_unblock_proc:
+                print(self._crossroad_unblock_proc)
+                self._crossroad_unblock_proc.interrupt()
+                self._crossroad_unblock_proc.defused = True
+                self._crossroad_unblock_proc = None
+
+            time_to_leave_crossroad = self.time_to_be_at_position(
+                self.length + MIN_GAP + 0.0001
+            )
+            print(self.speed, time_to_leave_crossroad)
+
+            if time_to_leave_crossroad > 0:
+                self._crossroad_unblock_proc = start_delayed(
+                    self.env, self._unblock_crossroad(), time_to_leave_crossroad
+                )
+
     @property
     def way_percentage(self) -> float:
         """Return the percentage of the way the car is on"""
@@ -132,7 +158,7 @@ class Car(SimulationEntity, metaclass=WithId):
             return math.inf
 
         end_time = (self.way.length - self.position) / self.speed
-        return end_time
+        return end_time * 3600
 
     @property
     def lane_leave_time(self) -> float:
@@ -166,13 +192,63 @@ class Car(SimulationEntity, metaclass=WithId):
         if self.speed <= self.car_ahead.speed:
             return math.inf
 
-        return distance / (self.speed - self.car_ahead.speed)
+        return distance / (self.speed - self.car_ahead.speed) * 3600
 
     @property
     def next_crossroad(self) -> Crossroad:
         return (
             self.way.next_crossroad if self.lane.is_forward else self.way.prev_crossroad
         )
+
+    def time_to_travel_distance(self, distance: float) -> float:
+        if self.speed == 0:
+            return math.inf
+
+        return (distance / self.speed) * 3600
+
+    def time_to_be_at_position(self, dest_position: float) -> float:
+        """Returns negative time if the car is already past the dest_position"""
+        return self.time_to_travel_distance(dest_position - self.position)
+
+    def _is_next_crossroad_blocked(self) -> bool:
+        blockers = self.next_crossroad.get_conflicting_lane_blockers(
+            (self.way, self.lane), (self._next_way, self._next_lane)
+        )
+
+        for blocker in blockers:
+            if blocker.count > 0 and blocker.users[0] not in self._blocker_requests:
+                return True
+
+    def _block_next_crossroad(self):
+        self._crossroad_blockers = self.next_crossroad.get_conflicting_lane_blockers(
+            (self.way, self.lane), (self._next_way, self._next_lane)
+        )
+
+        self._blocker_requests = [
+            blocker.request() for blocker in self._crossroad_blockers
+        ]
+
+        self._crossroad_blocked = True
+        print(f"{self.id} Crossroad {self.next_crossroad.id} blocked {self.env.now}")
+        return self.env.all_of(self._blocker_requests)
+
+    def _unblock_crossroad(self):
+        for idx, blocker in enumerate(self._crossroad_blockers):
+            blocker.release(self._blocker_requests[idx])
+
+        print(f"{self.id} Crossroad unblocked {self.env.now}")
+        self._crossroad_blocked = False
+        self._crossroad_unblock_proc = None
+        yield self.env.timeout(0)
+
+    def _wait_and_block_crossroad(self):
+        while self._is_next_crossroad_blocked():
+            # print(
+            #     "-------------------------------------------------------------------------"
+            # )
+            yield self.env.timeout(1)  # wait and try again
+
+        return self._block_next_crossroad()  # should be instant
 
     def drive(self):
         while True:
@@ -184,11 +260,9 @@ class Car(SimulationEntity, metaclass=WithId):
 
                 if not self.is_first_in_lane:
                     if self.time_to_reach_car_ahead < 0:
-                        return
+                        return  # TODO: handle this case
 
-                    crossing_timeout = self.env.timeout(
-                        self.time_to_reach_car_ahead * 3600
-                    )
+                    crossing_timeout = self.env.timeout(self.time_to_reach_car_ahead)
                     self.car_ahead_updated_event = self.env.event()
                     yield crossing_timeout | self.car_ahead_updated_event
 
@@ -201,7 +275,20 @@ class Car(SimulationEntity, metaclass=WithId):
 
                     self.car_ahead_updated_event = None
                 else:
-                    yield self.env.timeout(self.lane_end_time * 3600)
+                    close_to_crossroad_time = max(
+                        self.lane_end_time - CROSSROAD_BLOCKING_TIME, 0
+                    )
+
+                    # Come close to the crossroad
+                    yield self.env.timeout(close_to_crossroad_time)
+
+                    # If the crossroad is clear, block the crossroad
+                    if not self._is_next_crossroad_blocked:
+                        self._block_next_crossroad()  # should be instant
+
+                    # Come to the crossroad (end of the way)
+                    yield self.env.timeout(self.lane_end_time)
+
                     self.position = self.way.length
                     self.state = CarState.Waiting
 
@@ -238,33 +325,7 @@ class Car(SimulationEntity, metaclass=WithId):
                     self.way = None
                     return
 
-                blockers = self.next_crossroad.get_conflicting_lane_blockers(
-                    (self.way, self.lane), (self._next_way, self._next_lane)
-                )
-
-                blocker_requests = [
-                    blocker.request() for blocker in blockers
-                ]  # TODO: move blockers to crossing state
-
-                for blocker_request in blocker_requests:
-                    yield blocker_request
-
-                if self._next_lane.last:
-                    print(
-                        f"{self.id}, Car in next lane {self._next_lane.last.id}, {self._next_lane.last.position}, {self._next_lane.last.speed}"
-                    )
-                    while (
-                        self._next_lane.last
-                        and self._next_lane.last.position
-                        < MIN_GAP + self._next_lane.last.length
-                    ):
-                        yield self.env.timeout(1)  # waiting for space
-
-                self_blocker = self.next_crossroad.blockers[self.way.id][self.lane.id]
-                self_blocker_request = self_blocker.request()
-
-                yield self_blocker_request
-                yield self.env.timeout(2.5)  # crossing the crossroad
+                yield self._block_next_crossroad()
 
                 if self.car_behind:
                     if (
@@ -285,11 +346,6 @@ class Car(SimulationEntity, metaclass=WithId):
 
                 self.lane = self._next_lane
                 self.lane.put(self)
-
-                for idx, blocker in enumerate(blockers):
-                    blocker.release(blocker_requests[idx])
-
-                self_blocker.release(self_blocker_request)
 
                 self.position = 0
 
