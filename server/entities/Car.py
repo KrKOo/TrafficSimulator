@@ -94,10 +94,6 @@ class Car(SimulationEntity, metaclass=WithId):
         self._speed = value
         self.calendar_car_update()
 
-        print(
-            f"Car {self.id} speed set to {self.speed}, position: {self.position}, time: {self.env.now}"
-        )
-
         if self.car_behind:
             if (
                 self.car_behind.car_ahead_updated_event
@@ -107,7 +103,6 @@ class Car(SimulationEntity, metaclass=WithId):
 
         if self._crossroad_blocked:
             if self._crossroad_unblock_proc:
-                print(self._crossroad_unblock_proc)
                 self._crossroad_unblock_proc.interrupt()
                 self._crossroad_unblock_proc.defused = True
                 self._crossroad_unblock_proc = None
@@ -115,7 +110,6 @@ class Car(SimulationEntity, metaclass=WithId):
             time_to_leave_crossroad = self.time_to_be_at_position(
                 self.length + MIN_GAP + 0.0001
             )
-            print(self.speed, time_to_leave_crossroad)
 
             if time_to_leave_crossroad > 0:
                 self._crossroad_unblock_proc = start_delayed(
@@ -183,9 +177,7 @@ class Car(SimulationEntity, metaclass=WithId):
     @property
     def time_to_reach_car_ahead(self) -> float:
         distance = self.distance_to_car_ahead
-        print(
-            f"Car {self.id} Distance to car ahead: {distance}, car ahead speed: {self.car_ahead.speed}, car ahead pos: {self.car_ahead.position}, car behind pos: {self.position}"
-        )
+
         if distance is None:  # no car ahead
             return math.inf
 
@@ -229,23 +221,18 @@ class Car(SimulationEntity, metaclass=WithId):
         ]
 
         self._crossroad_blocked = True
-        print(f"{self.id} Crossroad {self.next_crossroad.id} blocked {self.env.now}")
         return self.env.all_of(self._blocker_requests)
 
     def _unblock_crossroad(self):
         for idx, blocker in enumerate(self._crossroad_blockers):
             blocker.release(self._blocker_requests[idx])
 
-        print(f"{self.id} Crossroad unblocked {self.env.now}")
         self._crossroad_blocked = False
         self._crossroad_unblock_proc = None
         yield self.env.timeout(0)
 
     def _wait_and_block_crossroad(self):
         while self._is_next_crossroad_blocked():
-            # print(
-            #     "-------------------------------------------------------------------------"
-            # )
             yield self.env.timeout(1)  # wait and try again
 
         return self._block_next_crossroad()  # should be instant
@@ -254,9 +241,6 @@ class Car(SimulationEntity, metaclass=WithId):
         while True:
             if self.state == CarState.Crossing:
                 self.speed = self.desired_speed
-                print(
-                    f"Car {self.id} is crossing the way {self.way.id}/{self.way.osm_id} lane {self.lane.id} at {self.position} km at {self.env.now}s, speed {self.speed} km/h"
-                )
 
                 if not self.is_first_in_lane:
                     if self.time_to_reach_car_ahead < 0:
@@ -294,9 +278,6 @@ class Car(SimulationEntity, metaclass=WithId):
 
             elif self.state == CarState.Queued:
                 self.speed = min(self.car_ahead.speed, self.desired_speed)
-                print(
-                    f"Car {self.id} is queued on the way {self.way.id} at {self.position} after car {self.car_ahead.id} at {self.car_ahead.position} km at {self.env.now}s, speed {self.speed}km/h"
-                )
                 self.car_ahead_updated_event = self.env.event()
                 yield self.car_ahead_updated_event
 
@@ -305,15 +286,8 @@ class Car(SimulationEntity, metaclass=WithId):
                 else:
                     self.state = CarState.Crossing
 
-                    print(
-                        f"Car {self.id} is dequeued at {self.env.now}s, pos: {self.position}"
-                    )
-
             elif self.state == CarState.Waiting:
                 self.speed = 0
-                print(
-                    f"Car {self.id} is waiting on crossroad {self.next_crossroad.id}/{self.next_crossroad.node.id} at {self.position} km at {self.env.now}s"
-                )
                 if self._next_lane is None:
                     if self.car_behind:
                         if (
@@ -332,14 +306,7 @@ class Car(SimulationEntity, metaclass=WithId):
                         self.car_behind.car_ahead_updated_event
                         and not self.car_behind.car_ahead_updated_event.triggered
                     ):
-                        print(
-                            f"Car {self.id} leaving crossroad and waking up car {self.car_behind.id}"
-                        )
                         self.car_behind.car_ahead_updated_event.succeed()
-
-                print(
-                    f"Car {self.id} turning to way {self._next_way.id}/{self._next_way.osm_id}, {self._next_turn}, {self._next_lane.last.id if self._next_lane.last else None} at {self.env.now}"
-                )
 
                 self.lane.pop(self)
                 self.way = self._next_way

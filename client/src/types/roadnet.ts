@@ -46,6 +46,9 @@ export interface Way {
 export interface Crossroad {
   id: number;
   node_id: bigint;
+  has_traffic_light: boolean;
+  lat: number;
+  lng: number;
 }
 
 export interface Simulation {

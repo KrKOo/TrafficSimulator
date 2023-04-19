@@ -6,6 +6,7 @@ import {
   Marker,
   Popup,
   Polyline,
+  Circle,
 } from 'react-leaflet';
 import { Simulation, Way, Lane, Event, LatLng } from 'types/roadnet';
 import { haversine } from 'utils/math';
@@ -189,15 +190,28 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
         return <Polyline key={key} positions={lane} dashOffset='50' />;
       })}
 
+      {simulation?.crossroads.map((crossroad, key) => {
+        return (
+          crossroad.has_traffic_light && (
+            <Circle
+              center={{ lat: crossroad.lat, lng: crossroad.lng }}
+              color='red'
+              fillColor='green'
+              radius={10}
+            />
+          )
+        );
+      })}
+
       {cars?.map((car, key) => {
         return (
           car.coords && (
-            <Marker key={key} position={car.coords}>
-              <Popup>
-                <div>Car {car.id}</div>
-                <div>Speed: {car.speed}</div>
-              </Popup>
-            </Marker>
+            <Circle
+              key={key}
+              center={car.coords}
+              color='green'
+              fillColor='green'
+              radius={2}></Circle>
           )
         );
       })}

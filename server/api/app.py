@@ -26,7 +26,7 @@ def hello_world():
     print("Cars spawned.")
 
     print("Simulating...")
-    env.run(until=1000)
+    env.run(until=36000)
     print("Done.")
 
     response = Response(parser.pack() + calendar.pack())

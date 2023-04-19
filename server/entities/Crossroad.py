@@ -60,8 +60,14 @@ class Crossroad(EntityBase, metaclass=WithId):
         return text
 
     def pack(self):
-        crossroad_struct = struct.Struct("!IQ")
-        return crossroad_struct.pack(self.id, self.node.id)
+        crossroad_struct = struct.Struct("!IQ?ff")
+        return crossroad_struct.pack(
+            self.id,
+            self.node.id,
+            self.has_traffic_light,
+            self.node.pos.lat,
+            self.node.pos.lng,
+        )
 
     @property
     def has_traffic_light(self):

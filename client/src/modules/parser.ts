@@ -12,7 +12,7 @@ import { haversine } from 'utils/math';
 const EVENT_STRUCT_SIZE = 6 * 4;
 const NODE_STRUCT_SIZE = 8 + 2 * 4;
 const LANE_STRUCT_SIZE = 4 + 1 + 8;
-const CROSSROAD_STRUCT_SIZE = 4 + 8;
+const CROSSROAD_STRUCT_SIZE = 4 + 8 + 1 + 2 * 4;
 const TURN_COUNT = 8;
 
 const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
@@ -153,10 +153,16 @@ const parseCrossroads = (buffer: ArrayBuffer, count: number) => {
   for (let i = 0; i < count; i++) {
     const crossroad_id = view.getUint32(i * CROSSROAD_STRUCT_SIZE);
     const node_id = view.getBigUint64(i * CROSSROAD_STRUCT_SIZE + 4);
+    const has_traffic_light = view.getInt8(i * CROSSROAD_STRUCT_SIZE + 12) != 0;
+    const lat = view.getFloat32(i * CROSSROAD_STRUCT_SIZE + 13);
+    const lng = view.getFloat32(i * CROSSROAD_STRUCT_SIZE + 17);
 
     crossroads.push({
       id: crossroad_id,
       node_id: node_id,
+      has_traffic_light: has_traffic_light,
+      lat: lat,
+      lng: lng,
     });
   }
 
