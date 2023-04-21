@@ -52,6 +52,7 @@ export interface Crossroad {
 }
 
 export interface Simulation {
+  nodes: Node[];
   ways: Way[];
   crossroads: Crossroad[];
   events: Event[];

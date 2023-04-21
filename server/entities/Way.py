@@ -87,33 +87,36 @@ class Way(EntityBase, metaclass=WithId):
         lane_struct = struct.Struct("!I?????????")
 
         for lane in self.lanes.forward + self.lanes.backward:
-            lanes_list.append(lane_struct.pack(
-                lane.id,
-                lane.is_forward,
-                Turn.none in lane.turns,
-                Turn.left in lane.turns,
-                Turn.right in lane.turns,
-                Turn.through in lane.turns,
-                Turn.merge_to_right in lane.turns,
-                Turn.merge_to_left in lane.turns,
-                Turn.slight_right in lane.turns,
-                Turn.slight_left in lane.turns
-            ))
+            lanes_list.append(
+                lane_struct.pack(
+                    lane.id,
+                    lane.is_forward,
+                    Turn.none in lane.turns,
+                    Turn.left in lane.turns,
+                    Turn.right in lane.turns,
+                    Turn.through in lane.turns,
+                    Turn.merge_to_right in lane.turns,
+                    Turn.merge_to_left in lane.turns,
+                    Turn.slight_right in lane.turns,
+                    Turn.slight_left in lane.turns,
+                )
+            )
         lanes_bytes = b"".join(lanes_list)
 
         nodes_list = []
-        node_struct = struct.Struct("!Qff")
 
         for node in self.nodes:
-            nodes_list.append(node_struct.pack(
-                node.id, node.pos.lat, node.pos.lng
-            ))
+            nodes_list.append(struct.pack("!Q", node.id))
+
         nodes_bytes = b"".join(nodes_list)
 
         way_struct = struct.Struct(f"!IIII")
 
-        return way_struct.pack(self.id, self.max_speed, len(nodes_list), len(lanes_list)) + nodes_bytes + lanes_bytes
-
+        return (
+            way_struct.pack(self.id, self.max_speed, len(nodes_list), len(lanes_list))
+            + nodes_bytes
+            + lanes_bytes
+        )
 
     def _init_lanes(self, lanes_props: WayLanesProps) -> WayLanes:
         if lanes_props.forward_lane_turn is None:

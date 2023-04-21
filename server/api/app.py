@@ -1,8 +1,10 @@
 from flask import Flask, Response
 import simpy
 import random
-from modules import Parser
+from modules import Parser, VehicleSpawner
 from entities import Calendar, Car
+from utils import plot
+import matplotlib.pyplot as plt
 
 
 app = Flask(__name__)
@@ -19,15 +21,19 @@ def hello_world():
 
     print("Roadnet parsed.")
     calendar = Calendar(env)
+    spawner = VehicleSpawner(env, calendar, parser.ways)
 
-    for i in range(900):
-        speed = random.randint(10, 50)
-        Car(env, calendar, parser.ways[i], 0, speed)
-    print("Cars spawned.")
+    print("Spawning vehicles...")
+    spawner.spawn(600)
 
     print("Simulating...")
-    env.run(until=36000)
-    print("Done.")
+
+    env.run(until=500)
+
+    for vehicle in spawner.vehicles:
+        vehicle.calendar_car_update()
+
+    print("Simulation finished.")
 
     response = Response(parser.pack() + calendar.pack())
     response.headers["Access-Control-Allow-Origin"] = "*"

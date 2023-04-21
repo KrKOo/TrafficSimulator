@@ -30,5 +30,9 @@ class Lane(EntityBase, metaclass=WithId):
         if self.first.id == car.id:
             return self.queue.pop()
 
+    def remove(self, car: SimulationEntity):
+        if car in self.queue:
+            self.queue.remove(car)
+
     def get_car_position(self, car: SimulationEntity):
         return self.queue.index(car)

@@ -34,11 +34,13 @@ class Parser(osmium.SimpleHandler):
             self._init_way_crossroads(way)
 
     def pack(self):
+        nodes_list = [node.pack() for node in self._nodes.values()]
         ways_list = [way.pack() for way in self.ways]
         crossroads_list = [crossroad.pack() for crossroad in self.crossroads]
 
         return (
-            struct.pack("!II", len(ways_list), len(crossroads_list))
+            struct.pack("!III", len(nodes_list), len(ways_list), len(crossroads_list))
+            + b"".join(nodes_list)
             + b"".join(ways_list)
             + b"".join(crossroads_list)
         )

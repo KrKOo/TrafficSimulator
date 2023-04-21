@@ -1,4 +1,4 @@
-import { LatLngExpression } from 'leaflet';
+import { Icon, LatLngExpression } from 'leaflet';
 import React, { useEffect, useState } from 'react';
 import {
   MapContainer,
@@ -117,7 +117,7 @@ const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
 
   if (!coords) {
     //TODO: refactor
-    console.log('no coords');
+    console.log('no coords', prev_event_props.id);
     return null;
   }
 
@@ -139,21 +139,21 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
   const [lanes, setLanes] = useState<LatLngExpression[][]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [cars, setCars] = useState<CarProps[]>();
+  const [carPropsInTime, setCarPropsInTime] = useState<
+    Record<number, CarProps[]>
+  >({});
 
   useEffect(() => {
     setTime(time_prop);
 
-    const car_props_in_time = getCarPropsInTime(events, time);
-
     const cars_props: CarProps[] = [];
-    for (const [key, value] of Object.entries(car_props_in_time)) {
+    for (const [key, value] of Object.entries(carPropsInTime)) {
       const car_props = getCarPropsAtTime(value, time);
       if (!car_props) {
         continue;
       }
       cars_props.push(car_props);
     }
-
     setCars(cars_props);
   }, [time_prop]);
 
@@ -178,6 +178,10 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
 
     setLanes(lanes);
     setEvents(simulation.events);
+
+    const carProps = getCarPropsInTime(simulation.events, Infinity);
+    console.log(carProps);
+    setCarPropsInTime(carProps);
   }, [simulation]);
 
   return (
@@ -206,13 +210,31 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
       {cars?.map((car, key) => {
         return (
           car.coords && (
-            <Circle
+            <Marker
               key={key}
-              center={car.coords}
-              color='green'
-              fillColor='green'
-              radius={2}></Circle>
+              position={car.coords}
+              // icon={
+              //   new Icon({
+              //     iconUrl:
+              //       car.id == 561
+              //         ? 'https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|2ecc71&chf=a,s,ee00FFFF'
+              //         : 'https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|abcdef&chf=a,s,ee00FFFF',
+              //   })
+              // }
+            >
+              <Popup>
+                <div>id: {car.id}</div>
+                <div>lane_id: {car.lane.id}</div>
+                <div>speed: {car.speed}</div>
+              </Popup>
+            </Marker>
           )
+          // <Circle
+          //   key={key}
+          //   center={car.coords}
+          //   color='green'
+          //   fillColor='green'
+          //   radius={2}></Circle>
         );
       })}
     </MapContainer>

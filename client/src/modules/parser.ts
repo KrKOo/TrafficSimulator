@@ -102,7 +102,19 @@ const getWayLength = (nodes: Node[]) => {
   return length;
 };
 
-const parseWays = (buffer: ArrayBuffer, count: number) => {
+const parseNodes = (buffer: ArrayBuffer, count: number) => {
+  const view = new DataView(buffer);
+
+  const nodes: Node[] = [];
+
+  for (let i = 0; i < count; i++) {
+    nodes.push(parseNode(view, i * NODE_STRUCT_SIZE));
+  }
+
+  return { nodes: nodes, size: count * NODE_STRUCT_SIZE };
+};
+
+const parseWays = (buffer: ArrayBuffer, count: number, nodes: Node[]) => {
   const view = new DataView(buffer);
 
   const ways: Way[] = [];
@@ -115,17 +127,21 @@ const parseWays = (buffer: ArrayBuffer, count: number) => {
     const nodes_count = view.getUint32(wayOffset + 8);
     const lanes_count = view.getUint32(wayOffset + 12);
 
-    const nodes: Node[] = [];
+    const _nodes: Node[] = [];
     const lanes: Lane[] = [];
 
     const nodes_offset = wayOffset + 16;
     for (let j = 0; j < nodes_count; j++) {
-      nodes.push(parseNode(view, nodes_offset + j * NODE_STRUCT_SIZE));
+      const nodeId = view.getBigUint64(nodes_offset + j * 8);
+      const node = nodes.find((node) => node.id == nodeId);
+      if (node) {
+        _nodes.push(node);
+      }
     }
 
-    const way_length = getWayLength(nodes);
+    const way_length = getWayLength(_nodes);
 
-    const lanes_offset = nodes_offset + nodes_count * NODE_STRUCT_SIZE;
+    const lanes_offset = nodes_offset + nodes_count * 8;
     for (let j = 0; j < lanes_count; j++) {
       lanes.push(
         parseLane(view, lanes_offset + j * LANE_STRUCT_SIZE, way_length)
@@ -135,7 +151,7 @@ const parseWays = (buffer: ArrayBuffer, count: number) => {
     ways.push({
       id: way_id,
       max_speed: max_speed,
-      nodes: nodes,
+      nodes: _nodes,
       lanes: lanes,
     });
 
@@ -172,13 +188,21 @@ const parseCrossroads = (buffer: ArrayBuffer, count: number) => {
 const parseSimulation = (buffer: ArrayBuffer): Simulation => {
   const view = new DataView(buffer);
 
-  const waysCount = view.getInt32(0);
-  const crossroadsCount = view.getInt32(4);
+  const nodesCount = view.getInt32(0);
+  const waysCount = view.getInt32(4);
+  const crossroadsCount = view.getInt32(8);
 
-  const waysOffset = 8;
+  const nodesOffset = 12;
+  const { nodes, size: nodesSize } = parseNodes(
+    buffer.slice(nodesOffset),
+    nodesCount
+  );
+
+  const waysOffset = nodesOffset + nodesSize;
   const { ways, size: waysSize } = parseWays(
     buffer.slice(waysOffset),
-    waysCount
+    waysCount,
+    nodes
   );
 
   const crossroadsOffset = waysOffset + waysSize;
@@ -190,7 +214,7 @@ const parseSimulation = (buffer: ArrayBuffer): Simulation => {
   const eventsOffset = crossroadsOffset + crossroadsSize;
   const events = parseEvents(buffer.slice(eventsOffset), ways);
 
-  return { ways: ways, crossroads: crossroads, events: events };
+  return { nodes: nodes, ways: ways, crossroads: crossroads, events: events };
 };
 
 export default parseSimulation;

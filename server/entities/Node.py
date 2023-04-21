@@ -1,3 +1,4 @@
+import struct
 from utils import LatLng
 from typing import TYPE_CHECKING
 
@@ -27,3 +28,6 @@ class Node:
 
     def remove_way(self, way: "Way"):
         self._ways.remove(way)
+
+    def pack(self):
+        return struct.pack("!Qff", self.id, self.pos.lat, self.pos.lng)
