@@ -12,14 +12,16 @@ from api.app import app
 if __name__ == "__main__":
     random.seed(0)
 
-    app.run()
+    # app.run()
 
-    # env = simpy.Environment()
+    env = simpy.Environment()
 
-    # parser = Parser(env)
+    parser = Parser(env)
 
-    # parser.apply_file("data/clean_lipuvka.osm")
-    # parser.init_crossroads()
+    parser.apply_file("data/clean_brno.osm")
+    parser.init_crossroads()
+    parser.remove_short_way_segments()
+
     # calendar = Calendar(env)
 
     # for i in range(100):
@@ -34,6 +36,7 @@ if __name__ == "__main__":
     # with open("out.json", "w") as outfile:
     #     outfile.write(json.dumps(calendar.get_data()))
 
-    # plot.plot_ways(plt, parser.ways)
-    # plot.plot_crossroads(plt, parser.crossroads)
-    # plt.show()
+    plt.axes().set_aspect("equal", "box")
+    plot.plot_ways(plt, parser.ways)
+    plot.plot_crossroads(plt, parser.crossroads)
+    plt.show()

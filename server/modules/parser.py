@@ -33,6 +33,10 @@ class Parser(osmium.SimpleHandler):
         for way in self.ways:
             self._init_way_crossroads(way)
 
+    def remove_short_way_segments(self):
+        for way in self.ways:
+            way.remove_short_segments()
+
     def pack(self):
         nodes_list = [node.pack() for node in self._nodes.values()]
         ways_list = [way.pack() for way in self.ways]
@@ -49,6 +53,26 @@ class Parser(osmium.SimpleHandler):
         lane_count = str_to_int(w.tags.get("lanes", "0"), 0)
         lane_forward_count = str_to_int(w.tags.get("lanes:forward", "0"), 0)
         lane_backward_count = str_to_int(w.tags.get("lanes:backward", "0"), 0)
+
+        psv_lanes_forward = w.tags.get("psv:lanes:forward", "")
+        psv_lane_forward_count = psv_lanes_forward.split("|").count("yes")
+
+        railway_lanes_forward = w.tags.get("railway:lanes:forward", "")
+        railway_lane_forward_count = railway_lanes_forward.split("|").count("tram")
+
+        psv_lanes_backward = w.tags.get("psv:lanes:backward", "")
+        psv_lane_backward_count = psv_lanes_backward.split("|").count("yes")
+
+        railway_lanes_backward = w.tags.get("railway:lanes:backward", "")
+        railway_lane_backward_count = railway_lanes_backward.split("|").count("tram")
+        if psv_lane_backward_count or railway_lane_backward_count:
+            print(
+                railway_lanes_backward,
+                railway_lane_backward_count,
+                psv_lanes_backward,
+                psv_lane_backward_count,
+            )
+
         oneway = w.tags.get("oneway") == "yes"
 
         if lane_count == 0:
@@ -64,8 +88,25 @@ class Parser(osmium.SimpleHandler):
             if lane_backward_count == 0:
                 lane_backward_count = lane_count - lane_forward_count
 
+        name = w.tags.get("name", "")
+        print(
+            name,
+            w.id,
+            lane_forward_count,
+            lane_backward_count,
+            max(psv_lane_forward_count, railway_lane_forward_count),
+            max(psv_lane_backward_count, railway_lane_backward_count),
+        )
+        lane_forward_count -= max(psv_lane_forward_count, railway_lane_forward_count)
+        lane_backward_count -= max(psv_lane_backward_count, railway_lane_backward_count)
+
         forward_turns = self._parse_turns(w.tags.get("turn:lanes:forward", ""))
         backward_turns = self._parse_turns(w.tags.get("turn:lanes:backward", ""))
+
+        forward_turns = forward_turns[-lane_forward_count:] if forward_turns else None
+        backward_turns = (
+            backward_turns[-lane_backward_count:] if backward_turns else None
+        )
 
         way_lanes = WayLanesProps(
             lane_forward_count, lane_backward_count, forward_turns, backward_turns

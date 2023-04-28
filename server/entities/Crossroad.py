@@ -12,6 +12,7 @@ import struct
 from .Node import Node
 from .Lane import Lane
 from utils import Turn
+from utils.map_geometry import is_incoming_way, angle_between_nodes
 from .Entity import EntityBase, WithId
 
 
@@ -193,7 +194,9 @@ class Crossroad(EntityBase, metaclass=WithId):
         return res_blockers
 
     def _get_in_lanes(self, way: Way) -> list[Lane]:
-        return way.lanes.forward if self._is_in_way(way) else way.lanes.backward
+        return (
+            way.lanes.forward if is_incoming_way(self.node, way) else way.lanes.backward
+        )
 
     def _update_main_ways(self):
         priorities = [
@@ -213,7 +216,7 @@ class Crossroad(EntityBase, metaclass=WithId):
     def get_next_way_options(self, way: Way) -> list[NextWayOption]:
         next_way_options: list[NextWayOption] = []
 
-        is_in_way = self._is_in_way(way)
+        is_in_way = is_incoming_way(self.node, way)
 
         for next_way in self._ways:
             if next_way == way:
@@ -236,7 +239,7 @@ class Crossroad(EntityBase, metaclass=WithId):
             if not can_turn:
                 continue
 
-            if self._is_in_way(next_way):
+            if is_incoming_way(self.node, next_way):
                 if len(next_way.lanes.backward) > 0:
                     next_way_options.append(NextWayOption(next_way, turn_direction))
             else:
@@ -252,11 +255,13 @@ class Crossroad(EntityBase, metaclass=WithId):
 
         in_lanes = (
             from_way.lanes.forward
-            if self._is_in_way(from_way)
+            if is_incoming_way(self.node, from_way)
             else from_way.lanes.backward
         )
         out_lanes = (
-            to_way.lanes.backward if self._is_in_way(to_way) else to_way.lanes.forward
+            to_way.lanes.backward
+            if is_incoming_way(self.node, to_way)
+            else to_way.lanes.forward
         )
 
         lane_options: dict[Lane, list[Lane]] = {}
@@ -274,14 +279,6 @@ class Crossroad(EntityBase, metaclass=WithId):
 
         return lane_options
 
-    def _is_in_way(self, way: Way) -> bool:
-        if way.nodes[-1].id == self.node.id:
-            return True
-        elif way.nodes[0].id == self.node.id:
-            return False
-
-        assert True, f"Way {way.id} is not connected to crossroad {self.id}"
-
     def _get_way_turn(self, from_way: Way, to_way: Way):
         way_turns = self.turns[from_way.id]
 
@@ -295,29 +292,21 @@ class Crossroad(EntityBase, metaclass=WithId):
         return None
 
     def _get_way_angles(self) -> dict[Way, float]:
-        in_ways = [w.id for w in self._ways if w.nodes[-1].id == self.node.id]
-        out_ways = [w.id for w in self._ways if w.nodes[0].id == self.node.id]
-
         way_angle: dict[Way, float] = {}
 
         for way in self._ways:
-            delta_lat, delta_lng = 0, 0
+            is_in_way = is_incoming_way(self.node, way)
 
-            if way.id in in_ways:
-                delta_lng = way.nodes[-2].pos.lng - self.node.pos.lng
-                delta_lat = way.nodes[-2].pos.lat - self.node.pos.lat
-            elif way.id in out_ways:
-                delta_lng = way.nodes[1].pos.lng - self.node.pos.lng
-                delta_lat = way.nodes[1].pos.lat - self.node.pos.lat
-
-            angle = math.atan2(delta_lat, delta_lng)
-            angle = (angle * 180 / math.pi) % 360
+            if is_in_way:
+                angle = angle_between_nodes(self.node, way.nodes[-2])
+            else:
+                angle = angle_between_nodes(self.node, way.nodes[1])
 
             way_angle[way] = angle
 
         return way_angle
 
-    # TODO: what if there are more ways to the same direction?
+    # TODO: slight right/left
     def _update_turns(self):
         way_angle = self._get_way_angles()
         self.turns = {}

@@ -5,6 +5,11 @@ from .Road import Road
 from .Lane import Lane
 from .Crossroad import Crossroad
 from .Entity import EntityBase, WithId
+from utils.math import haversine
+from utils.types import LatLng
+
+LANE_GAP = 0.003
+CROSSROAD_OFFSET = 0.005
 
 
 class WayLanesProps:
@@ -64,7 +69,11 @@ class Way(EntityBase, metaclass=WithId):
 
     @property
     def length(self):
-        return sum([road.length for road in self.roads])
+        length = 0
+        for i in range(len(self.nodes) - 1):
+            length += haversine(self.nodes[i].pos, self.nodes[i + 1].pos)
+
+        return length
 
     @property
     def nodes(self):
@@ -185,6 +194,52 @@ class Way(EntityBase, metaclass=WithId):
         self.next_crossroad = self.next_crossroad  # in case the way is a loop
 
         return new_way
+
+    def remove_short_segments(self):
+        self.nodes = self._get_nodes_without_short_segments(self.nodes)
+
+    def _get_nodes_without_short_segments(self, nodes: list[Node]):
+        if len(nodes) < 3:
+            return nodes
+
+        start_segments_length = 0
+        start_segments_node_count = 0
+
+        end_segments_length = 0
+        end_segments_node_count = 0
+
+        res_nodes = []
+
+        start_max_lanes = max(
+            [len(lane_nodes) for lane_nodes in self.nodes[0].lane_nodes.values()]
+        )
+        start_offset = start_max_lanes * LANE_GAP / 2
+        for idx in range(len(nodes) - 1):
+            start_segments_length += haversine(nodes[idx].pos, nodes[idx + 1].pos)
+            start_segments_node_count = idx + 1
+            if start_segments_length >= start_offset:
+                break
+
+        end_max_lanes = max(
+            [len(lane_nodes) for lane_nodes in self.nodes[-1].lane_nodes.values()]
+        )
+        end_offset = end_max_lanes * LANE_GAP / 2
+        for idx in range(len(nodes) - 1):
+            end_segments_length += haversine(nodes[-idx - 1].pos, nodes[-idx - 2].pos)
+            end_segments_node_count = idx + 1
+            if end_segments_length >= end_offset:
+                break
+
+        if start_segments_node_count + end_segments_node_count >= len(nodes):
+            res_nodes = [nodes[0], nodes[-1]]
+        else:
+            res_nodes = (
+                [nodes[0]]
+                + nodes[start_segments_node_count:-end_segments_node_count]
+                + [nodes[-1]]
+            )
+
+        return res_nodes
 
     @property
     def next_crossroad(self) -> Crossroad:
