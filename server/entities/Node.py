@@ -58,12 +58,7 @@ class Node:
                 if node_idx == 0 or node_idx == len(way.nodes) - 1:
                     next_node = way.nodes[1] if node_idx == 0 else way.nodes[-2]
 
-                    max_lanes = max(
-                        [
-                            len(way.lanes.forward) + len(way.lanes.backward)
-                            for way in self.ways
-                        ]
-                    )
+                    max_lanes = max([way.lane_count for way in self.ways])
                     offset = min((way.length * 0.4) / 100, max_lanes * LANE_GAP * 0.6)
 
                     way_angle = angle_between_nodes(self, next_node)
@@ -90,14 +85,13 @@ class Node:
 
                 angle = angle % 360
 
-                lane_count = len(way.lanes.forward) + len(way.lanes.backward)
-                way_width = (lane_count - 1) * LANE_GAP
+                way_width = (way.lane_count - 1) * LANE_GAP
 
                 base_lane_pos = get_point_from_angle_and_distance(
                     node_center, angle, -way_width / 2
                 )
 
-                for i in range(lane_count):
+                for i in range(way.lane_count):
                     lane_node = get_point_from_angle_and_distance(
                         base_lane_pos, angle, i * LANE_GAP
                     )

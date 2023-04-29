@@ -7,6 +7,7 @@ from .Crossroad import Crossroad
 from .Entity import EntityBase, WithId
 from utils.math import haversine
 from utils.types import LatLng
+from utils.helpers import transpose
 
 LANE_GAP = 0.003
 CROSSROAD_OFFSET = 0.005
@@ -24,7 +25,6 @@ class WayLanesProps:
         self.backward_lane_count = backward_count
         self.forward_lane_turn = turn_lanes_forward
         self.backward_lane_turn = turn_lanes_backward
-        # TODO: railway, psv, vehicle lanes
 
 
 class WayLanes:
@@ -58,7 +58,7 @@ class Way(EntityBase, metaclass=WithId):
         self.highway_class = highway_class
         self.max_speed = max_speed
         self.lane_props = lanes_props
-        self.lanes = self._init_lanes(lanes_props)
+        self.lanes: WayLanes = None
         self._nodes = []
         self.nodes = nodes if nodes is not None else []
 
@@ -90,6 +90,12 @@ class Way(EntityBase, metaclass=WithId):
         for node in self._nodes:
             if self not in node.ways:
                 node.add_way(self)
+
+        self.lanes = self._init_lanes()
+
+    @property
+    def lane_count(self):
+        return self.lane_props.forward_lane_count + self.lane_props.backward_lane_count
 
     def pack(self):
         lanes_list = []
@@ -127,24 +133,51 @@ class Way(EntityBase, metaclass=WithId):
             + lanes_bytes
         )
 
-    def _init_lanes(self, lanes_props: WayLanesProps) -> WayLanes:
-        if lanes_props.forward_lane_turn is None:
-            forward_lanes = [Lane(True) for _ in range(lanes_props.forward_lane_count)]
-        else:
-            forward_lanes = [
-                Lane(True, turns=lane_turn)
-                for lane_turn in lanes_props.forward_lane_turn
-            ]
+    def _get_lanes_nodes(self):
+        lanes_nodes = [[] for _ in self.nodes]
 
-        if lanes_props.backward_lane_turn is None:
-            backward_lanes = [
-                Lane(False) for _ in range(lanes_props.backward_lane_count)
-            ]
-        else:
-            backward_lanes = [
-                Lane(False, turns=lane_turn)
-                for lane_turn in lanes_props.backward_lane_turn
-            ]
+        for idx, way_node in enumerate(self.nodes):
+            for lane_nodes in way_node.lane_nodes[self.id]:
+                lanes_nodes[idx].append(lane_nodes)
+
+        return transpose(lanes_nodes)
+
+    def _init_lanes(self) -> WayLanes:
+        lanes_nodes = self._get_lanes_nodes()
+
+        forward_lanes = []
+        backward_lanes = []
+
+        for i in range(self.lane_props.forward_lane_count):
+            turns = (
+                self.lane_props.forward_lane_turn[i]
+                if self.lane_props.forward_lane_turn
+                and i < len(self.lane_props.forward_lane_turn)
+                else None
+            )
+            forward_lanes.append(Lane(lanes_nodes[i], self, True, turns=turns))
+
+        for i in range(len(forward_lanes)):
+            forward_lanes[i].left = (
+                forward_lanes[i + 1] if i + 1 < len(forward_lanes) else None
+            )
+            forward_lanes[i].right = forward_lanes[i - 1] if i - 1 >= 0 else None
+
+        lanes_nodes.reverse()
+        for i in range(self.lane_props.backward_lane_count):
+            turns = (
+                self.lane_props.backward_lane_turn[i]
+                if self.lane_props.backward_lane_turn
+                and i < len(self.lane_props.backward_lane_turn)
+                else None
+            )
+            backward_lanes.append(Lane(lanes_nodes[i], self, False, turns=turns))
+
+        for i in range(len(backward_lanes)):
+            backward_lanes[i].left = (
+                backward_lanes[i + 1] if i + 1 < len(backward_lanes) else None
+            )
+            backward_lanes[i].right = backward_lanes[i - 1] if i - 1 >= 0 else None
 
         return WayLanes(forward_lanes, backward_lanes)
 
