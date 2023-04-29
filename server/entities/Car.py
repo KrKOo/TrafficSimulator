@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from modules import VehicleSpawner
 
@@ -15,7 +16,8 @@ from .Event import Event
 from .Calendar import Calendar
 from .Lane import Lane
 from .Crossroad import Crossroad
-from utils import Turn
+from utils import Turn, LatLng
+from utils.math import haversine
 
 MIN_GAP = 0.001
 CROSSROAD_BLOCKING_TIME = (
@@ -296,7 +298,7 @@ class Car(SimulationEntity, metaclass=WithId):
         self.speed = 0
         self.env.process(self._unblock_crossroad())
         car_behind = self.car_behind
-        print("Car behindddd", car_behind)
+        print("Car behind", car_behind)
         self.lane.remove(self)
         self.poke_car_behind(car_behind)
         self.spawner.despawn(self)
@@ -320,6 +322,7 @@ class Car(SimulationEntity, metaclass=WithId):
                     and self.time_to_reach_car_ahead != math.inf
                 ):
                     if self.time_to_reach_car_ahead < 0:
+                        print("colision")
                         return
 
                     crossing_timeout = self.env.timeout(self.time_to_reach_car_ahead)
@@ -475,6 +478,38 @@ class Car(SimulationEntity, metaclass=WithId):
 
         return next_way, next_lane, turn
 
+    def get_coords(self):
+        car_distance = self.position
+
+        nodes_length = 0
+        segment_length = None
+
+        nodes = (
+            self.way.nodes if self.lane.is_forward else list(reversed(self.way.nodes))
+        )
+
+        for i in range(len(self.way.nodes) - 1):
+            segment_length = haversine(self.way.nodes[i].pos, self.way.nodes[i + 1].pos)
+            nodes_length += segment_length
+
+            if nodes_length > car_distance:
+                break
+
+        car_distance_on_segment = nodes_length - car_distance
+        segment_percentage = car_distance_on_segment / segment_length
+
+        lat = (
+            nodes[i].pos.lat
+            + (nodes[i + 1].pos.lat - nodes[i].pos.lat) * segment_percentage
+        )
+
+        lng = (
+            nodes[i].pos.lng
+            + (nodes[i + 1].pos.lng - nodes[i].pos.lng) * segment_percentage
+        )
+
+        return LatLng(lat, lng)
+
     def calendar_car_update(self):
         print(
             f"Car {self.id} updated at {self.env.now}, position {self.way_percentage}, speed {self.speed}, state {self.state.name}, way {self.way.id}, lane {self.lane.id}, car ahead {(self.car_ahead.id, self.car_ahead.way_percentage) if self.car_ahead else None}, car behind {self.car_behind.id if self.car_behind else None}"
@@ -484,7 +519,7 @@ class Car(SimulationEntity, metaclass=WithId):
                 self.id,
                 self.way.id,
                 self.lane.id,
-                self.way_percentage,
+                self.get_coords(),
                 self.speed,
             )
         )

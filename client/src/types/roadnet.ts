@@ -19,7 +19,7 @@ export interface Event {
   car_id: number;
   way: Way;
   lane: Lane;
-  position: number;
+  coords: LatLng;
   speed: number;
 }
 

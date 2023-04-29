@@ -16,7 +16,7 @@ def hello_world():
     env = simpy.Environment()
     parser = Parser(env)
 
-    parser.apply_file("data/clean_brno.osm")
+    parser.apply_file("data/clean_lipuvka.osm")
     parser.init_crossroads()
 
     print("Roadnet parsed.")
@@ -24,7 +24,7 @@ def hello_world():
     spawner = VehicleSpawner(env, calendar, parser.ways)
 
     print("Spawning vehicles...")
-    spawner.spawn(600)
+    spawner.spawn(100)
 
     print("Simulating...")
 

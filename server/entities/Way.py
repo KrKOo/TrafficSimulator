@@ -60,12 +60,12 @@ class Way(EntityBase, metaclass=WithId):
         self.lane_props = lanes_props
         self.lanes: WayLanes = None
         self._nodes = []
+        self._next_crossroad: Crossroad = None
+        self._prev_crossroad: Crossroad = None
+
         self.nodes = nodes if nodes is not None else []
 
         self.roads = self._init_roads()
-
-        self._next_crossroad: Crossroad = None
-        self._prev_crossroad: Crossroad = None
 
     @property
     def length(self):
@@ -92,6 +92,11 @@ class Way(EntityBase, metaclass=WithId):
                 node.add_way(self)
 
         self.lanes = self._init_lanes()
+
+        if self.next_crossroad:
+            self.next_crossroad.update()
+        if self.prev_crossroad:
+            self.prev_crossroad.update()
 
     @property
     def lane_count(self):

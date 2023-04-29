@@ -19,8 +19,7 @@ interface MapProps {
 interface CarProps {
   id: number;
   time: number;
-  position: number;
-  coords?: LatLng;
+  coords: LatLng;
   way: Way;
   lane: Lane;
   speed: number;
@@ -37,7 +36,7 @@ const getCarPropsInTime = (events: Event[], max_time: number) => {
     car_props_at_time[event.car_id].push({
       id: event.car_id,
       time: event.time,
-      position: event.position,
+      coords: event.coords,
       way: event.way,
       lane: event.lane,
       speed: event.speed,
@@ -51,36 +50,11 @@ const getCarPropsInTime = (events: Event[], max_time: number) => {
   return car_props_at_time;
 };
 
-const getCoordsFromPosition = (
-  way: Way,
-  lane: Lane,
-  position: number,
-  is_forward: boolean
-) => {
-  const nodes = is_forward ? way.nodes : [...way.nodes].reverse();
-  const precision = 0.001;
-
-  let position_in_km = (position * lane.length) / 100;
-
-  for (let i = 0; i < nodes.length - 1; i++) {
-    const node = nodes[i];
-    const nextNode = nodes[i + 1];
-    const distance = haversine(node, nextNode);
-    if (position_in_km - distance <= precision) {
-      const lat =
-        node.lat + (nextNode.lat - node.lat) * (position_in_km / distance);
-      const lng =
-        node.lng + (nextNode.lng - node.lng) * (position_in_km / distance);
-
-      return { lat, lng };
-    }
-    position_in_km -= distance;
+const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
+  if (time < car_props_in_time[0].time) {
+    return null;
   }
 
-  return null;
-};
-
-const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
   const next_event_index = car_props_in_time.findIndex(
     (props_at_time) => props_at_time.time >= time
   );
@@ -96,24 +70,23 @@ const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
 
   const time_diff = next_event_props.time - prev_event_props.time;
 
-  let position;
+  let coords: LatLng;
   if (prev_event_props.lane !== next_event_props.lane) {
     // position = prev_event_props.lane.is_forward ? 100 : 0;
-    position = 100;
+    coords = next_event_props.coords;
   } else {
-    const position_diff = next_event_props.position - prev_event_props.position;
+    const lat_diff = next_event_props.coords.lat - prev_event_props.coords.lat;
+    const lng_diff = next_event_props.coords.lng - prev_event_props.coords.lng;
 
-    position =
-      prev_event_props.position +
-      ((time - prev_event_props.time) / time_diff) * position_diff;
+    // const position_diff = next_event_props.position - prev_event_props.position;
+
+    const time_fraction = (time - prev_event_props.time) / time_diff;
+
+    coords = {
+      lat: prev_event_props.coords.lat + time_fraction * lat_diff,
+      lng: prev_event_props.coords.lng + time_fraction * lng_diff,
+    };
   }
-
-  const coords = getCoordsFromPosition(
-    prev_event_props.way,
-    prev_event_props.lane,
-    position,
-    prev_event_props.lane.is_forward
-  );
 
   if (!coords) {
     //TODO: refactor
@@ -124,7 +97,6 @@ const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
   return {
     id: prev_event_props.id,
     time: time,
-    position: position,
     coords: coords,
     way: prev_event_props.way,
     lane: prev_event_props.lane,

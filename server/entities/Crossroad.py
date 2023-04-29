@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from entities import Way
+    from entities.Way import Way
 
 import math
 import simpy
@@ -80,12 +80,13 @@ class Crossroad(EntityBase, metaclass=WithId):
 
     def add_way(self, way: Way):
         self._ways.append(way)
-        self._update_turns()
-        self._update_main_ways()
-        self._update_blockers()
+        self.update()
 
     def remove_way(self, way: Way):
         self._ways.remove(way)
+        self.update()
+
+    def update(self):
         self._update_turns()
         self._update_main_ways()
         self._update_blockers()

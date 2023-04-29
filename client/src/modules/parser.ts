@@ -9,7 +9,7 @@ import {
 } from 'types/roadnet';
 import { haversine } from 'utils/math';
 
-const EVENT_STRUCT_SIZE = 6 * 4;
+const EVENT_STRUCT_SIZE = 7 * 4;
 const NODE_STRUCT_SIZE = 8 + 2 * 4;
 const LANE_STRUCT_SIZE = 4 + 1 + 8;
 const CROSSROAD_STRUCT_SIZE = 4 + 8 + 1 + 2 * 4;
@@ -25,8 +25,9 @@ const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
     const car_id = view.getUint32(i + 4);
     const way_id = view.getUint32(i + 8);
     const lane_id = view.getUint32(i + 12);
-    const position = view.getFloat32(i + 16);
-    const speed = view.getFloat32(i + 20);
+    const lat = view.getFloat32(i + 16);
+    const lng = view.getFloat32(i + 20);
+    const speed = view.getFloat32(i + 24);
 
     const way = ways.find((way) => way.id == way_id);
     if (!way) {
@@ -43,7 +44,7 @@ const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
       car_id: car_id,
       way: way,
       lane: lane,
-      position: position,
+      coords: { lat: lat, lng: lng },
       speed: speed,
     });
   }

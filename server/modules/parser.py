@@ -89,16 +89,17 @@ class Parser(osmium.SimpleHandler):
                 lane_backward_count = lane_count - lane_forward_count
 
         name = w.tags.get("name", "")
-        print(
-            name,
-            w.id,
-            lane_forward_count,
-            lane_backward_count,
-            max(psv_lane_forward_count, railway_lane_forward_count),
-            max(psv_lane_backward_count, railway_lane_backward_count),
+
+        non_car_lane_forward_count = max(
+            psv_lane_forward_count, railway_lane_forward_count
         )
-        lane_forward_count -= max(psv_lane_forward_count, railway_lane_forward_count)
-        lane_backward_count -= max(psv_lane_backward_count, railway_lane_backward_count)
+        non_car_lane_backward_count = max(
+            psv_lane_backward_count, railway_lane_backward_count
+        )
+        if lane_forward_count > non_car_lane_forward_count:
+            lane_forward_count -= non_car_lane_forward_count
+        if lane_backward_count > non_car_lane_backward_count:
+            lane_backward_count -= non_car_lane_backward_count
 
         forward_turns = self._parse_turns(w.tags.get("turn:lanes:forward", ""))
         backward_turns = self._parse_turns(w.tags.get("turn:lanes:backward", ""))
