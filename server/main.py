@@ -16,9 +16,7 @@ if __name__ == "__main__":
 
     # parser = Parser(env)
 
-    # parser.apply_file("data/clean_brno.osm")
-    # parser.init_crossroads()
-    # parser.remove_short_way_segments()
+    # parser.parse("data/clean_brno.osm")
 
     # calendar = Calendar(env)
 

@@ -16,8 +16,7 @@ def hello_world():
     env = simpy.Environment()
     parser = Parser(env)
 
-    parser.apply_file("data/clean_brno.osm")
-    parser.init_crossroads()
+    parser.parse("data/clean_brno.osm")
 
     print("Roadnet parsed.")
     calendar = Calendar(env)

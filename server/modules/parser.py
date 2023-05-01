@@ -12,6 +12,11 @@ class Parser(osmium.SimpleHandler):
         self.ways: list[Way] = []
         self.crossroads: list[Crossroad] = []
 
+    def parse(self, filename):
+        self.apply_file(filename)
+        self.init_crossroads()
+        self.remove_short_way_segments()
+
     def node(self, n: osmium.osm.Node):
         has_traffic_light = n.tags.get("highway") == "traffic_signals"
         self._nodes[n.id] = Node(
