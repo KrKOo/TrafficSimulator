@@ -1,4 +1,5 @@
 import {
+  LatLng,
   Simulation,
   Event,
   Way,
@@ -9,9 +10,10 @@ import {
 } from 'types/roadnet';
 import { haversine } from 'utils/math';
 
-const EVENT_STRUCT_SIZE = 7 * 4;
+const EVENT_STRUCT_SIZE = 6 * 4;
 const NODE_STRUCT_SIZE = 8 + 2 * 4;
-const LANE_STRUCT_SIZE = 4 + 1 + 8;
+const LANE_NODE_STRUCT_SIZE = 8;
+const LANE_STRUCT_SIZE = 4 + 4 + 1 + 8;
 const CROSSROAD_STRUCT_SIZE = 4 + 8 + 1 + 2 * 4;
 const TURN_COUNT = 8;
 
@@ -25,9 +27,8 @@ const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
     const car_id = view.getUint32(i + 4);
     const way_id = view.getUint32(i + 8);
     const lane_id = view.getUint32(i + 12);
-    const lat = view.getFloat32(i + 16);
-    const lng = view.getFloat32(i + 20);
-    const speed = view.getFloat32(i + 24);
+    const position = view.getFloat32(i + 16);
+    const speed = view.getFloat32(i + 20);
 
     const way = ways.find((way) => way.id == way_id);
     if (!way) {
@@ -44,7 +45,7 @@ const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
       car_id: car_id,
       way: way,
       lane: lane,
-      coords: { lat: lat, lng: lng },
+      position: position,
       speed: speed,
     });
   }
@@ -64,30 +65,45 @@ const parseNode = (view: DataView, offset: number) => {
   };
 };
 
-const parseLane = (view: DataView, offset: number, length: number) => {
+const parseLane = (view: DataView, offset: number) => {
   const id = view.getUint32(offset + 0);
-  const is_forward = view.getInt8(offset + 4) != 0;
+  const node_count = view.getUint32(offset + 4);
+  const is_forward = view.getInt8(offset + 8) != 0;
 
   const turns: Turns[] = [];
 
-  const turns_offset = 5;
+  const turns_offset = offset + 9;
   for (let i: Turns = 0; i < TURN_COUNT; i++) {
-    const turn = view.getInt8(offset + turns_offset + i * 4);
+    const turn = view.getInt8(turns_offset + i * 1);
 
     if (turn != 0) {
       turns.push(i);
     }
   }
 
+  let nodes: LatLng[] = [];
+  const nodes_offset = turns_offset + TURN_COUNT;
+
+  for (let i = 0; i < node_count; i++) {
+    const lat = view.getFloat32(nodes_offset + i * 8);
+    const lng = view.getFloat32(nodes_offset + i * 8 + 4);
+
+    nodes.push({ lat: lat, lng: lng });
+  }
+
   return {
-    id: id,
-    is_forward: is_forward,
-    turns: turns,
-    length: length, // TODO: fix this
+    lane: {
+      id: id,
+      is_forward: is_forward,
+      turns: turns,
+      nodes: nodes,
+      length: getLaneLength(nodes),
+    },
+    size: LANE_STRUCT_SIZE + node_count * LANE_NODE_STRUCT_SIZE,
   };
 };
 
-const getWayLength = (nodes: Node[]) => {
+const getLaneLength = (nodes: LatLng[]) => {
   let length = 0;
 
   for (let i = 0; i < nodes.length - 1; i++) {
@@ -115,7 +131,7 @@ const parseNodes = (buffer: ArrayBuffer, count: number) => {
   return { nodes: nodes, size: count * NODE_STRUCT_SIZE };
 };
 
-const parseWays = (buffer: ArrayBuffer, count: number, nodes: Node[]) => {
+const parseWays = (buffer: ArrayBuffer, count: number) => {
   const view = new DataView(buffer);
 
   const ways: Way[] = [];
@@ -125,38 +141,24 @@ const parseWays = (buffer: ArrayBuffer, count: number, nodes: Node[]) => {
   for (let i = 0; i < count; i++) {
     const way_id = view.getUint32(wayOffset);
     const max_speed = view.getUint32(wayOffset + 4);
-    const nodes_count = view.getUint32(wayOffset + 8);
-    const lanes_count = view.getUint32(wayOffset + 12);
+    const lanes_count = view.getUint32(wayOffset + 8);
 
-    const _nodes: Node[] = [];
     const lanes: Lane[] = [];
 
-    const nodes_offset = wayOffset + 16;
-    for (let j = 0; j < nodes_count; j++) {
-      const nodeId = view.getBigUint64(nodes_offset + j * 8);
-      const node = nodes.find((node) => node.id == nodeId);
-      if (node) {
-        _nodes.push(node);
-      }
-    }
-
-    const way_length = getWayLength(_nodes);
-
-    const lanes_offset = nodes_offset + nodes_count * 8;
+    let lanes_offset = wayOffset + 12;
     for (let j = 0; j < lanes_count; j++) {
-      lanes.push(
-        parseLane(view, lanes_offset + j * LANE_STRUCT_SIZE, way_length)
-      );
+      const { lane, size } = parseLane(view, lanes_offset);
+      lanes_offset += size;
+      lanes.push(lane);
     }
 
     ways.push({
       id: way_id,
       max_speed: max_speed,
-      nodes: _nodes,
       lanes: lanes,
     });
 
-    wayOffset = lanes_offset + lanes_count * LANE_STRUCT_SIZE;
+    wayOffset = lanes_offset;
   }
 
   return { ways: ways, size: wayOffset };
@@ -202,8 +204,7 @@ const parseSimulation = (buffer: ArrayBuffer): Simulation => {
   const waysOffset = nodesOffset + nodesSize;
   const { ways, size: waysSize } = parseWays(
     buffer.slice(waysOffset),
-    waysCount,
-    nodes
+    waysCount
   );
 
   const crossroadsOffset = waysOffset + waysSize;

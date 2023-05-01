@@ -10,8 +10,6 @@ from utils import plot
 from api.app import app
 
 if __name__ == "__main__":
-    random.seed(0)
-
     app.run()
 
     # env = simpy.Environment()

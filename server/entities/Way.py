@@ -38,6 +38,9 @@ class WayLanes:
         for lane in self.backward:
             lane.is_forward = False
 
+    def __len__(self):
+        return len(self.forward) + len(self.backward)
+
     def __getitem__(self, index):
         lanes = self.forward + self.backward
         return lanes[index]
@@ -103,39 +106,11 @@ class Way(EntityBase, metaclass=WithId):
         return self.lane_props.forward_lane_count + self.lane_props.backward_lane_count
 
     def pack(self):
-        lanes_list = []
-        lane_struct = struct.Struct("!I?????????")
+        packed_lanes = [lane.pack() for lane in self.lanes]
+        way_struct = struct.Struct(f"!III")
 
-        for lane in self.lanes.forward + self.lanes.backward:
-            lanes_list.append(
-                lane_struct.pack(
-                    lane.id,
-                    lane.is_forward,
-                    Turn.none in lane.turns,
-                    Turn.left in lane.turns,
-                    Turn.right in lane.turns,
-                    Turn.through in lane.turns,
-                    Turn.merge_to_right in lane.turns,
-                    Turn.merge_to_left in lane.turns,
-                    Turn.slight_right in lane.turns,
-                    Turn.slight_left in lane.turns,
-                )
-            )
-        lanes_bytes = b"".join(lanes_list)
-
-        nodes_list = []
-
-        for node in self.nodes:
-            nodes_list.append(struct.pack("!Q", node.id))
-
-        nodes_bytes = b"".join(nodes_list)
-
-        way_struct = struct.Struct(f"!IIII")
-
-        return (
-            way_struct.pack(self.id, self.max_speed, len(nodes_list), len(lanes_list))
-            + nodes_bytes
-            + lanes_bytes
+        return way_struct.pack(self.id, self.max_speed, len(packed_lanes)) + b"".join(
+            packed_lanes
         )
 
     def _get_lanes_nodes(self):

@@ -1,6 +1,8 @@
+import struct
 from .Entity import SimulationEntity, EntityBase, WithId
 from entities import Way
 from utils import Turn, LatLng
+from utils.math import haversine
 
 
 class Lane(EntityBase, metaclass=WithId):
@@ -25,6 +27,14 @@ class Lane(EntityBase, metaclass=WithId):
         self.queue = []
 
     @property
+    def length(self):
+        length = 0
+        for i in range(len(self.nodes) - 1):
+            length += haversine(self.nodes[i], self.nodes[i + 1])
+
+        return length
+
+    @property
     def last(self):
         return self.queue[0] if len(self.queue) > 0 else None
 
@@ -45,3 +55,26 @@ class Lane(EntityBase, metaclass=WithId):
 
     def get_car_position(self, car: SimulationEntity):
         return self.queue.index(car)
+
+    def pack(self):
+        nodes_list = []
+
+        for node in self.nodes:
+            nodes_list.append(struct.pack("!ff", node.lat, node.lng))
+
+        lane_struct = struct.Struct("!II?????????")
+
+        lane_bytes = lane_struct.pack(
+            self.id,
+            len(nodes_list),
+            self.is_forward,
+            Turn.none in self.turns,
+            Turn.left in self.turns,
+            Turn.right in self.turns,
+            Turn.through in self.turns,
+            Turn.merge_to_right in self.turns,
+            Turn.merge_to_left in self.turns,
+            Turn.slight_right in self.turns,
+            Turn.slight_left in self.turns,
+        )
+        return lane_bytes + b"".join(nodes_list)

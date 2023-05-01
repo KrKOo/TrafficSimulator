@@ -145,7 +145,7 @@ class Car(SimulationEntity, metaclass=WithId):
     @property
     def way_percentage(self) -> float:
         """Return the percentage of the way the car is on"""
-        p = self.position / self.way.length
+        p = self.position / self.lane.length
 
         # if self.lane.is_forward == False:
         #     p = 1 - p
@@ -177,7 +177,7 @@ class Car(SimulationEntity, metaclass=WithId):
         if self.speed == 0:
             return math.inf
 
-        end_time = (self.way.length - self.position) / self.speed
+        end_time = (self.lane.length - self.position) / self.speed
         return end_time * 3600
 
     @property
@@ -186,7 +186,7 @@ class Car(SimulationEntity, metaclass=WithId):
             return math.inf
 
         leave_time = (
-            self.way.length - self.position + self.length + MIN_GAP
+            self.lane.length - self.position + self.length + MIN_GAP
         ) / self.speed
         return leave_time
 
@@ -341,7 +341,7 @@ class Car(SimulationEntity, metaclass=WithId):
                         self.position = self.position
                         self.state = CarState.Queued
                         print(
-                            f"Car {self.id} caught up {self.car_ahead.id} at {self.position}/{self.way.length}, {self.env.now}, way: {self.way.id}, lane: {self.lane.id}, ahead way: {self.car_ahead.way.id}, ahead lane: {self.car_ahead.lane.id}, ahead position: {self.car_ahead.position}/{self.car_ahead.way.length}"
+                            f"Car {self.id} caught up {self.car_ahead.id} at {self.position}/{self.lane.length}, {self.env.now}, way: {self.way.id}, lane: {self.lane.id}, ahead way: {self.car_ahead.way.id}, ahead lane: {self.car_ahead.lane.id}, ahead position: {self.car_ahead.position}/{self.car_ahead.lane.length}"
                         )
 
                     self.car_ahead_updated_event = None
@@ -352,7 +352,7 @@ class Car(SimulationEntity, metaclass=WithId):
 
                     # Come close to the crossroad
                     print(
-                        f"Car {self.id} coming close to crossroad {self.position}/{self.way.length}, close_to_crossroad_time: {close_to_crossroad_time}"
+                        f"Car {self.id} coming close to crossroad {self.position}/{self.lane.length}, close_to_crossroad_time: {close_to_crossroad_time}"
                     )
                     self.car_ahead_updated_event = self.env.event()
                     yield self.env.timeout(
@@ -379,7 +379,7 @@ class Car(SimulationEntity, metaclass=WithId):
 
                     # Come to the crossroad (end of the way)
                     print(
-                        f"Car {self.id} coming to the crossroad {self.position}/{self.way.length}, lane_end_time: {self.lane_end_time}"
+                        f"Car {self.id} coming to the crossroad {self.position}/{self.lane.length}, lane_end_time: {self.lane_end_time}"
                     )
                     yield self.env.timeout(
                         self.lane_end_time
@@ -391,7 +391,7 @@ class Car(SimulationEntity, metaclass=WithId):
                         self.car_ahead_updated_event = None
                         continue
 
-                    self.position = self.way.length
+                    self.position = self.lane.length
                     self.state = CarState.Waiting
 
             elif self.state == CarState.Queued:
@@ -484,9 +484,9 @@ class Car(SimulationEntity, metaclass=WithId):
         nodes_length = 0
         segment_length = None
 
-        nodes = (
-            self.way.nodes if self.lane.is_forward else list(reversed(self.way.nodes))
-        )
+        nodes = self.lane.nodes
+        if not self.lane.is_forward:
+            nodes.reverse()
 
         for i in range(len(self.way.nodes) - 1):
             segment_length = haversine(self.way.nodes[i].pos, self.way.nodes[i + 1].pos)
@@ -498,15 +498,9 @@ class Car(SimulationEntity, metaclass=WithId):
         car_distance_on_segment = nodes_length - car_distance
         segment_percentage = car_distance_on_segment / segment_length
 
-        lat = (
-            nodes[i].pos.lat
-            + (nodes[i + 1].pos.lat - nodes[i].pos.lat) * segment_percentage
-        )
+        lat = nodes[i].lat + (nodes[i + 1].lat - nodes[i].lat) * segment_percentage
 
-        lng = (
-            nodes[i].pos.lng
-            + (nodes[i + 1].pos.lng - nodes[i].pos.lng) * segment_percentage
-        )
+        lng = nodes[i].lng + (nodes[i + 1].lng - nodes[i].lng) * segment_percentage
 
         return LatLng(lat, lng)
 
@@ -519,7 +513,7 @@ class Car(SimulationEntity, metaclass=WithId):
                 self.id,
                 self.way.id,
                 self.lane.id,
-                self.get_coords(),
+                self.way_percentage,
                 self.speed,
             )
         )

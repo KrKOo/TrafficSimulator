@@ -19,7 +19,7 @@ export interface Event {
   car_id: number;
   way: Way;
   lane: Lane;
-  coords: LatLng;
+  position: number;
   speed: number;
 }
 
@@ -33,13 +33,13 @@ export interface Lane {
   id: number;
   is_forward: boolean;
   turns: Turns[];
+  nodes: LatLng[];
   length: number;
 }
 
 export interface Way {
   id: number;
   max_speed: number;
-  nodes: Node[];
   lanes: Lane[];
 }
 

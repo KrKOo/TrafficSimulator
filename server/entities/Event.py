@@ -6,20 +6,19 @@ class Event:
     def __init__(self, car_id, way_id, lane_id, position, speed):
         self.time: float = None
         self.car_id: int = car_id
-        self.position: LatLng = position
+        self.position: float = position
         self.way_id: int = way_id
         self.lane_id: int = lane_id
         self.speed: float = speed
 
     def pack(self):
         data = struct.pack(
-            "!fIIIfff",
+            "!fIIIff",
             self.time,
             self.car_id,
             self.way_id,
             self.lane_id,
-            self.position.lat,
-            self.position.lng,
+            self.position,
             self.speed,
         )
 
@@ -31,7 +30,6 @@ class Event:
             "car_id": self.car_id,
             "way_id": self.way_id,
             "lane_id": self.lane_id,
-            "lat": self.position.lat,
-            "lng": self.position.lng,
+            "position": self.position,
             "speed": self.speed,
         }

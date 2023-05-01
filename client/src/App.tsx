@@ -27,9 +27,7 @@ const App = () => {
       const end_time = data.events[data.events.length - 1].time;
       setEndTime(end_time);
     })();
-  }, []);
 
-  useEffect(() => {
     const interval = setInterval(() => {
       setSliderTime((seconds) => seconds + 0.1);
     }, 100);
