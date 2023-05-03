@@ -1,6 +1,6 @@
 import struct
 from .Entity import SimulationEntity, EntityBase, WithId
-from entities import Way
+from entities import Way, Car
 from utils import Turn, LatLng
 from utils.math import haversine
 
@@ -19,15 +19,15 @@ class Lane(EntityBase, metaclass=WithId):
         self.turns = turns if turns is not None else []
         self.nodes: list[LatLng] = nodes
         self.way: Way = way
+        self.length = self._get_length()
 
         # Neighbour lanes
-        self.right = None
-        self.left = None
+        self.right: Lane = None
+        self.left: Lane = None
 
-        self.queue = []
+        self.queue: list[Car] = []
 
-    @property
-    def length(self):
+    def _get_length(self):
         length = 0
         for i in range(len(self.nodes) - 1):
             length += haversine(self.nodes[i], self.nodes[i + 1])
@@ -45,6 +45,9 @@ class Lane(EntityBase, metaclass=WithId):
     def put(self, car: SimulationEntity):
         self.queue.insert(0, car)
 
+    def put_ahead_of_car(self, car: SimulationEntity, car_behind: SimulationEntity):
+        self.queue.insert(self.queue.index(car_behind) + 1, car)
+
     def pop(self, car: SimulationEntity):
         if self.first.id == car.id:
             return self.queue.pop()
@@ -55,6 +58,23 @@ class Lane(EntityBase, metaclass=WithId):
 
     def get_car_position(self, car: SimulationEntity):
         return self.queue.index(car)
+
+    def get_car_behind_position(self, position: float):
+        car_behind = None
+        for car in self.queue:
+            if car.position < position:
+                car_behind = car
+            else:
+                break
+
+        return car_behind
+
+    def get_car_ahead_of_position(self, position: float):
+        for car in self.queue:
+            if car.position > position:
+                return car
+
+        return None
 
     def pack(self):
         nodes_list = []

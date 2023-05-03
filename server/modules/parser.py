@@ -93,8 +93,6 @@ class Parser(osmium.SimpleHandler):
             if lane_backward_count == 0:
                 lane_backward_count = lane_count - lane_forward_count
 
-        name = w.tags.get("name", "")
-
         non_car_lane_forward_count = max(
             psv_lane_forward_count, railway_lane_forward_count
         )
@@ -109,9 +107,11 @@ class Parser(osmium.SimpleHandler):
         forward_turns = self._parse_turns(w.tags.get("turn:lanes:forward", ""))
         backward_turns = self._parse_turns(w.tags.get("turn:lanes:backward", ""))
 
-        forward_turns = forward_turns[-lane_forward_count:] if forward_turns else None
+        forward_turns = (
+            forward_turns[-lane_forward_count:][::-1] if forward_turns else None
+        )
         backward_turns = (
-            backward_turns[-lane_backward_count:] if backward_turns else None
+            backward_turns[-lane_backward_count:][::-1] if backward_turns else None
         )
 
         way_lanes = WayLanesProps(

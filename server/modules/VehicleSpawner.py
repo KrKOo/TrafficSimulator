@@ -10,15 +10,20 @@ class VehicleSpawner:
         self.vehicles: list[Car] = []
 
     def spawn(self, amount):
-        for i in range(amount):
+        for _ in range(amount):
             speed = random.randint(10, 50)
-            vehicle = Car(self.env, self, self.calendar, self.ways[i], 0, speed)
+            way = self.ways[random.randint(0, len(self.ways) - 1)]
+            lane = way.lanes[random.randint(0, len(way.lanes) - 1)]
+            position = random.uniform(0, lane.length)
+            vehicle = Car(self.env, self, self.calendar, way, lane, position, speed)
             self.vehicles.append(vehicle)
 
     def despawn(self, vehicle):
         if vehicle in self.vehicles:
             self.vehicles.remove(vehicle)
-        way = self.ways[random.randint(0, len(self.ways) - 1)]
         speed = random.randint(10, 50)
-        new_vehicle = Car(self.env, self, self.calendar, way, 0, speed)
+        way = self.ways[random.randint(0, len(self.ways) - 1)]
+        lane = way.lanes[random.randint(0, len(way.lanes) - 1)]
+        position = random.uniform(0, lane.length)
+        new_vehicle = Car(self.env, self, self.calendar, way, lane, position, speed)
         print(f"New vehicle {new_vehicle.id} spawned")
