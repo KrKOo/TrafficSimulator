@@ -448,69 +448,6 @@ class Car(SimulationEntity, metaclass=WithId):
         self.calendar_car_update()
         self.poke_car_behind(self.car_behind)
 
-    def catch_up_car_ahead_process(self):
-        if self.time_to_reach_car_ahead < 0:
-            print("colision")
-            return CarState.Despawning
-
-        crossing_timeout = self.env.timeout(self.time_to_reach_car_ahead)
-
-        print(
-            f"Car {self.id} is catching up {self.car_ahead.id}, time: {self.time_to_reach_car_ahead}, distance: {self.distance_to_car_ahead}, speed: {self.speed}"
-        )
-
-        yield crossing_timeout | self.environment_update_event | self._car_ahead_update_event
-
-        self.position = self.position
-
-        if crossing_timeout.processed:
-            print(
-                f"Car {self.id} caught up {self.car_ahead.id} at {self.position}/{self.lane.length}, {self.env.now}, way: {self.way.id}, lane: {self.lane.id}, ahead way: {self.car_ahead.way.id}, ahead lane: {self.car_ahead.lane.id}, ahead position: {self.car_ahead.position}/{self.car_ahead.lane.length}"
-            )
-            return CarState.Queued
-        else:
-            return CarState.Crossing
-
-    def drive_to_end_of_lane(self):
-        close_to_crossroad_time = max(self.lane_end_time - CROSSROAD_BLOCKING_TIME, 0)
-
-        # Come close to the crossroad
-        print(
-            f"Car {self.id} coming close to crossroad {self.position}/{self.lane.length}, close_to_crossroad_time: {close_to_crossroad_time}"
-        )
-
-        crossing_timeout = self.env.timeout(close_to_crossroad_time)
-        yield crossing_timeout | self.environment_update_event | self._car_ahead_update_event
-
-        if not crossing_timeout.processed:
-            self.position = self.position
-            return CarState.Crossing
-
-        # If the crossroad is clear, block the crossroad
-        print(
-            f"Car {self.id}, next crossroad blocked: {self.is_next_crossroad_blocked}, blockers {[blocker.count for blocker in self._crossroad_blockers]}"
-        )
-        if not self.is_next_crossroad_blocked and self.is_first_in_lane:
-            print(f"Car {self.id} blocking near crossroad at {self.env.now}")
-            yield self._block_next_crossroad()  # should be instant
-            self._next_crossroad_blocked = True
-            print(f"Car {self.id} blocked near crossroad at {self.env.now}")
-
-        # Come to the crossroad (end of the way)
-        print(
-            f"Car {self.id} coming to the crossroad {self.position}/{self.lane.length}, lane_end_time: {self.lane_end_time}"
-        )
-
-        crossing_timeout = self.env.timeout(self.lane_end_time)
-        yield crossing_timeout | self.environment_update_event | self._car_ahead_update_event
-
-        if not crossing_timeout.processed:
-            self.position = self.position
-            return CarState.Crossing
-
-        self.position = self.lane.length
-        return CarState.Waiting
-
     def drive_to_lane_percentage(self, lane_percentage: float):
         lane_position = lane_percentage / 100 * self.lane.length
 
