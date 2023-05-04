@@ -24,7 +24,7 @@ def hello_world():
     spawner = VehicleSpawner(env, calendar, parser.ways)
 
     print("Spawning vehicles...")
-    spawner.spawn(vehicle_count)
+    spawner.spawn_multiple(vehicle_count)
 
     print("Simulating...")
 

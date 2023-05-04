@@ -62,6 +62,8 @@ class Lane(EntityBase, metaclass=WithId):
     def pop(self, car: SimulationEntity):
         if self.first.id == car.id:
             return self.queue.pop()
+        else:
+            print(f"Car {car.id} is popping from queue when not first")
 
     def remove(self, car: SimulationEntity):
         if car in self.queue:
