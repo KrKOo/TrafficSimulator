@@ -143,7 +143,7 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
   const position = { lat: 49.2335, lng: 16.5765 };
   const [time, setTime] = useState<number>(0);
   const [ways, setWays] = useState<Way[]>([]);
-  const [lanes, setLanes] = useState<LatLngExpression[][][]>([]);
+  const [lanes, setLanes] = useState<Lane[][]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [cars, setCars] = useState<CarProps[]>();
   const [carPropsInTime, setCarPropsInTime] = useState<
@@ -170,21 +170,7 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
     setWays(simulation.ways);
 
     const lanes = simulation.ways.map((way) => {
-      const lanes_segments = way.lanes.map((lane) => {
-        // const lane_segments = [];
-        // for (let i = 0; i < lane.nodes.length - 1; i++) {
-        //   const node = lane.nodes[i];
-        //   const nextNode = lane.nodes[i + 1];
-        //   lane_segments.push(
-        //     { lat: node.lat, lng: node.lng },
-        //     { lat: nextNode.lat, lng: nextNode.lng }
-        //   );
-        // }
-
-        return lane.nodes;
-      });
-
-      return lanes_segments;
+      return way.lanes;
     });
 
     setLanes(lanes);
@@ -203,7 +189,15 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
       />
       {lanes.map((way_lanes) => {
         return way_lanes.map((lane, key) => {
-          return <Polyline key={key} positions={lane} dashOffset='50' />;
+          return (
+            <Polyline
+              key={key}
+              positions={lane.nodes}
+              dashOffset='50'
+              color={lane.is_forward ? 'red' : 'green'}
+              weight={2}
+            />
+          );
         });
       })}
 
@@ -223,30 +217,18 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
       {cars?.map((car, key) => {
         return (
           car.coords && (
-            <Marker
+            <Circle
               key={key}
-              position={car.coords}
-              // icon={
-              //   new Icon({
-              //     iconUrl:
-              //       car.id == 561
-              //         ? 'https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|2ecc71&chf=a,s,ee00FFFF'
-              //         : 'https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=%E2%80%A2|abcdef&chf=a,s,ee00FFFF',
-              //   })
-              // }
-            >
+              center={car.coords}
+              color='blue'
+              fillColor='lightblue'
+              radius={2}>
               <Popup>
                 <div>id: {car.id}</div>
                 <div>lane_id: {car.lane.id}</div>
                 <div>speed: {car.speed}</div>
               </Popup>
-            </Marker>
-            // <Circle
-            //   key={key}
-            //   center={car.coords}
-            //   color='green'
-            //   fillColor='green'
-            //   radius={2}></Circle>
+            </Circle>
           )
         );
       })}
