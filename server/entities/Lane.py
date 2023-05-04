@@ -3,6 +3,7 @@ from .Entity import SimulationEntity, EntityBase, WithId
 from entities import Way, Car
 from utils import Turn, LatLng
 from utils.math import haversine
+from utils.globals import MIN_GAP
 
 
 class Lane(EntityBase, metaclass=WithId):
@@ -25,6 +26,7 @@ class Lane(EntityBase, metaclass=WithId):
         self.right: Lane = None
         self.left: Lane = None
 
+        # First car in queue is the last one on the lane
         self.queue: list[Car] = []
 
     def _get_length(self):
@@ -46,7 +48,16 @@ class Lane(EntityBase, metaclass=WithId):
         self.queue.insert(0, car)
 
     def put_ahead_of_car(self, car: SimulationEntity, car_behind: SimulationEntity):
-        self.queue.insert(self.queue.index(car_behind) + 1, car)
+        if car_behind is None:
+            self.put(car)
+        else:
+            self.queue.insert(self.queue.index(car_behind) + 1, car)
+
+    def put_behind_car(self, car: SimulationEntity, car_ahead: SimulationEntity):
+        if car_ahead is None:
+            self.queue.append(car)
+        else:
+            self.queue.insert(self.queue.index(car_ahead), car)
 
     def pop(self, car: SimulationEntity):
         if self.first.id == car.id:
@@ -75,6 +86,17 @@ class Lane(EntityBase, metaclass=WithId):
                 return car
 
         return None
+
+    def get_queue_length_ahead_of_car(self, car: SimulationEntity):
+        car_index = self.queue.index(car)
+        queue_ahead = self.queue[car_index + 1 :]
+
+        length = 0
+
+        for car in queue_ahead:
+            length += car.length + MIN_GAP
+
+        return length
 
     def pack(self):
         nodes_list = []
