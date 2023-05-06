@@ -39,15 +39,16 @@ class Crossroad(EntityBase, metaclass=WithId):
         self.env = env
         self._ways: list[Way] = []
         self.node: Node = node
-        self.turns: dict[int, CrossroadTurn] = {}
+        self.turns: dict[Way, CrossroadTurn] = {}
         self.blockers: collections.defaultdict[int, dict[int, simpy.Resource]] = {}
+        self.lanes: list[Lane] = []
 
         self.main_ways: list[Way] = []
 
     def __repr__(self):
         way_turns = {}
-        for way_id, turns in self.turns.items():
-            way_turns[way_id] = [
+        for way, turns in self.turns.items():
+            way_turns[way.id] = [
                 turns.through.id if turns.through else None,
                 turns.left.id if turns.left else None,
                 turns.right.id if turns.right else None,
@@ -61,13 +62,19 @@ class Crossroad(EntityBase, metaclass=WithId):
         return text
 
     def pack(self):
-        crossroad_struct = struct.Struct("!IQ?ff")
-        return crossroad_struct.pack(
-            self.id,
-            self.node.id,
-            self.has_traffic_light,
-            self.node.pos.lat,
-            self.node.pos.lng,
+        lanes_bytes = b"".join([lane.pack() for lane in self.lanes])
+
+        crossroad_struct = struct.Struct("!IQ?ffI")
+        return (
+            crossroad_struct.pack(
+                self.id,
+                self.node.id,
+                self.has_traffic_light,
+                self.node.pos.lat,
+                self.node.pos.lng,
+                len(self.lanes),
+            )
+            + lanes_bytes
         )
 
     @property
@@ -90,6 +97,33 @@ class Crossroad(EntityBase, metaclass=WithId):
         self._update_turns()
         self._update_main_ways()
         self._update_blockers()
+        self._update_lanes()
+
+    def _update_lanes(self):
+        self.lanes = []
+
+        for from_way in self._ways:
+            is_from_way_incoming = is_incoming_way(self.node, from_way)
+            for to_way in self._ways:
+                if from_way == to_way:
+                    continue
+                is_to_way_incoming = is_incoming_way(self.node, to_way)
+                lane_options = self.get_next_lane_options(from_way, to_way)
+
+                for from_lane, to_lanes in lane_options.items():
+                    for to_lane in to_lanes:
+                        from_node = (
+                            from_lane.nodes[-1]
+                            if is_from_way_incoming
+                            else from_lane.nodes[0]
+                        )
+                        to_node = (
+                            to_lane.nodes[-1]
+                            if is_to_way_incoming
+                            else to_lane.nodes[0]
+                        )
+
+                        self.lanes.append(Lane([from_node, to_node]))
 
     def _update_blockers(self):
         blockers = collections.defaultdict(dict[int, simpy.Resource])
@@ -120,7 +154,7 @@ class Crossroad(EntityBase, metaclass=WithId):
             Block lanes in front of from_way if turn_direction == Turn.Left
             """
 
-            left_way = self.turns[from_way_lane[0].id].left
+            left_way = self.turns[from_way_lane[0]].left
             if left_way:
                 for lane in self._get_in_lanes(left_way):
                     if (
@@ -130,12 +164,12 @@ class Crossroad(EntityBase, metaclass=WithId):
                     ):
                         res_blockers.append(self.blockers[left_way.id][lane.id])
 
-            right_way = self.turns[from_way_lane[0].id].right
+            right_way = self.turns[from_way_lane[0]].right
             if right_way:
                 for lane in self._get_in_lanes(right_way):
                     res_blockers.append(self.blockers[right_way.id][lane.id])
 
-            front_way = self.turns[from_way_lane[0].id].through
+            front_way = self.turns[from_way_lane[0]].through
             if front_way:
                 for lane in self._get_in_lanes(front_way):
                     if (
@@ -150,7 +184,7 @@ class Crossroad(EntityBase, metaclass=WithId):
             Block lanes on right side of from_way if turn_direction == Turn.Left or Turn.Through
             Block lanes in front of from_way if turn_direction == Turn.Through
             """
-            left_way = self.turns[from_way_lane[0].id].left
+            left_way = self.turns[from_way_lane[0]].left
             if left_way:
                 for lane in self._get_in_lanes(left_way):
                     if (
@@ -160,7 +194,7 @@ class Crossroad(EntityBase, metaclass=WithId):
                     ):
                         res_blockers.append(self.blockers[left_way.id][lane.id])
 
-            right_way = self.turns[from_way_lane[0].id].right
+            right_way = self.turns[from_way_lane[0]].right
             if right_way:
                 for lane in self._get_in_lanes(right_way):
                     if (
@@ -170,7 +204,7 @@ class Crossroad(EntityBase, metaclass=WithId):
                     ):
                         res_blockers.append(self.blockers[right_way.id][lane.id])
 
-            front_way = self.turns[from_way_lane[0].id].through
+            front_way = self.turns[from_way_lane[0]].through
             if front_way:
                 for lane in self._get_in_lanes(front_way):
                     if len(lane.turns) == 0 or Turn.through in lane.turns:
@@ -180,13 +214,13 @@ class Crossroad(EntityBase, metaclass=WithId):
             Block lanes on left side of from_way if turn_direction == Turn.Through
             Block lanes in front of from_way if turn_direction == Turn.Left
             """
-            left_way = self.turns[from_way_lane[0].id].left
+            left_way = self.turns[from_way_lane[0]].left
             if left_way:
                 for lane in self._get_in_lanes(left_way):
                     if len(lane.turns) == 0 or Turn.through in lane.turns:
                         res_blockers.append(self.blockers[left_way.id][lane.id])
 
-            front_way = self.turns[from_way_lane[0].id].through
+            front_way = self.turns[from_way_lane[0]].through
             if front_way:
                 for lane in self._get_in_lanes(front_way):
                     if len(lane.turns) == 0 or Turn.left in lane.turns:
@@ -281,7 +315,7 @@ class Crossroad(EntityBase, metaclass=WithId):
         return lane_options
 
     def _get_way_turn(self, from_way: Way, to_way: Way):
-        way_turns = self.turns[from_way.id]
+        way_turns = self.turns[from_way]
 
         if way_turns.through == to_way:
             return Turn.through
@@ -366,4 +400,4 @@ class Crossroad(EntityBase, metaclass=WithId):
                 turns.through = turns.right or turns.left
                 turns.right = turns.left = None
 
-            self.turns[way.id] = turns
+            self.turns[way] = turns

@@ -5,10 +5,10 @@ import {
   TileLayer,
   Marker,
   Popup,
-  Polyline,
   Circle,
+  Polyline,
 } from 'react-leaflet';
-import { Simulation, Way, Lane, Event, LatLng } from 'types/roadnet';
+import { Simulation, Way, Lane, Event, LatLng, Crossroad } from 'types/roadnet';
 import { haversine } from 'utils/math';
 
 interface MapProps {
@@ -142,9 +142,6 @@ const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
 const Map = ({ simulation, time: time_prop }: MapProps) => {
   const position = { lat: 49.2335, lng: 16.5765 };
   const [time, setTime] = useState<number>(0);
-  const [ways, setWays] = useState<Way[]>([]);
-  const [lanes, setLanes] = useState<Lane[][]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
   const [cars, setCars] = useState<CarProps[]>();
   const [carPropsInTime, setCarPropsInTime] = useState<
     Record<number, CarProps[]>
@@ -167,52 +164,21 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
 
   useEffect(() => {
     if (!simulation) return;
-    setWays(simulation.ways);
-
-    const lanes = simulation.ways.map((way) => {
-      return way.lanes;
-    });
-
-    setLanes(lanes);
-    setEvents(simulation.events);
-
     const carProps = getCarPropsInTime(simulation.events, Infinity);
     console.log(carProps);
     setCarPropsInTime(carProps);
   }, [simulation]);
 
   return (
-    <MapContainer center={position} zoom={13} scrollWheelZoom={true}>
+    <MapContainer
+      center={position}
+      zoom={13}
+      scrollWheelZoom={true}
+      maxZoom={25}>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
       />
-      {lanes.map((way_lanes) => {
-        return way_lanes.map((lane, key) => {
-          return (
-            <Polyline
-              key={key}
-              positions={lane.nodes}
-              dashOffset='50'
-              color={lane.is_forward ? 'red' : 'green'}
-              weight={2}
-            />
-          );
-        });
-      })}
-
-      {simulation?.crossroads.map((crossroad, key) => {
-        return (
-          crossroad.has_traffic_light && (
-            <Circle
-              center={{ lat: crossroad.lat, lng: crossroad.lng }}
-              color='red'
-              fillColor='green'
-              radius={10}
-            />
-          )
-        );
-      })}
 
       {cars?.map((car, key) => {
         return (
@@ -232,8 +198,69 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
           )
         );
       })}
+
+      {simulation && <Roadnet simulation={simulation} />}
     </MapContainer>
   );
 };
+
+interface RoadnetProps {
+  simulation: Simulation;
+}
+
+const Roadnet = React.memo(({ simulation }: RoadnetProps) => {
+  const [lanes, setLanes] = useState<Lane[][]>([]);
+  useEffect(() => {
+    if (!simulation) return;
+
+    const lanes = simulation.ways.map((way) => {
+      return way.lanes;
+    });
+
+    setLanes(lanes);
+  }, [simulation]);
+  return (
+    <>
+      {lanes.map((way_lanes) => {
+        return way_lanes.map((lane, key) => (
+          <Polyline
+            key={key}
+            positions={lane.nodes}
+            dashOffset='50'
+            color={lane.is_forward ? 'red' : 'green'}
+            weight={2}
+          />
+        ));
+      })}
+
+      {simulation?.crossroads.map((crossroad, key) => {
+        return (
+          <>
+            {crossroad.has_traffic_light && (
+              <Circle
+                center={{ lat: crossroad.lat, lng: crossroad.lng }}
+                color='red'
+                fillColor='green'
+                radius={10}
+              />
+            )}
+
+            {crossroad.lanes.map((lane, key) => {
+              return (
+                <Polyline
+                  key={key}
+                  positions={lane.nodes}
+                  dashOffset='50'
+                  color={'blue'}
+                  weight={2}
+                />
+              );
+            })}
+          </>
+        );
+      })}
+    </>
+  );
+});
 
 export default Map;

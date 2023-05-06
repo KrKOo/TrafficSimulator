@@ -16,21 +16,7 @@ if __name__ == "__main__":
 
     # parser = Parser(env)
 
-    # parser.parse("data/clean_brno.osm")
-
-    # calendar = Calendar(env)
-
-    # for i in range(100):
-    #     speed = random.randint(10, 60)
-    #     Car(env, calendar, parser.ways[i], 0, speed)
-
-    # env.run(until=100000)
-
-    # with open("out.sim", "wb") as outfile:
-    #     outfile.write(calendar.pack())
-
-    # with open("out.json", "w") as outfile:
-    #     outfile.write(json.dumps(calendar.get_data()))
+    # parser.parse("data/clean_lipuvka.osm")
 
     # plt.axes().set_aspect("equal", "box")
     # plot.plot_ways(plt, parser.ways)

@@ -1,26 +1,25 @@
-from entities import Way, Crossroad
+from entities import Way, Crossroad, Lane
 import matplotlib
 
 
-def plot_lanes(plt: matplotlib.pyplot, way: Way):
+def plot_way(plt: matplotlib.pyplot, way: Way):
     for forward_lane in way.lanes.forward:
-        x = [node.lng for node in forward_lane.nodes]
-        y = [node.lat for node in forward_lane.nodes]
-
-        plt.plot(x, y, "g", linestyle="-", linewidth=1)
-        # plt.plot(x[-1], y[-1], "bo")
+        plot_lane(plt, forward_lane, "g")
 
     for backward_lane in way.lanes.backward:
-        x = [node.lng for node in backward_lane.nodes]
-        y = [node.lat for node in backward_lane.nodes]
+        plot_lane(plt, backward_lane, "r")
 
-        plt.plot(x, y, "r", linestyle="-", linewidth=1)
-        # plt.plot(x[0], y[0], "bo")
+
+def plot_lane(plt: matplotlib.pyplot, lane: Lane, color: str = "g"):
+    x = [node.lng for node in lane.nodes]
+    y = [node.lat for node in lane.nodes]
+
+    plt.plot(x, y, color, linestyle="-", linewidth=1)
 
 
 def plot_ways(plt: matplotlib.pyplot, ways: list[Way]):
     for way in ways:
-        plot_lanes(plt, way)
+        plot_way(plt, way)
 
 
 def plot_crossroads(plt: matplotlib.pyplot, crossroads: list[Crossroad]):
@@ -33,3 +32,6 @@ def plot_crossroads(plt: matplotlib.pyplot, crossroads: list[Crossroad]):
         #     f"{crossroad.id}",
         #     (crossroad.node.pos.lng, crossroad.node.pos.lat),
         # )
+
+        for lane in crossroad.lanes:
+            plot_lane(plt, lane, "b")

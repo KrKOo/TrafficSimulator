@@ -14,7 +14,7 @@ const EVENT_STRUCT_SIZE = 6 * 4;
 const NODE_STRUCT_SIZE = 8 + 2 * 4;
 const LANE_NODE_STRUCT_SIZE = 8;
 const LANE_STRUCT_SIZE = 4 + 4 + 1 + 8;
-const CROSSROAD_STRUCT_SIZE = 4 + 8 + 1 + 2 * 4;
+const CROSSROAD_STRUCT_SIZE = 4 + 8 + 1 + 3 * 4;
 const TURN_COUNT = 8;
 
 const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
@@ -141,12 +141,12 @@ const parseWays = (buffer: ArrayBuffer, count: number) => {
   for (let i = 0; i < count; i++) {
     const way_id = view.getUint32(wayOffset);
     const max_speed = view.getUint32(wayOffset + 4);
-    const lanes_count = view.getUint32(wayOffset + 8);
+    const lane_count = view.getUint32(wayOffset + 8);
 
     const lanes: Lane[] = [];
 
     let lanes_offset = wayOffset + 12;
-    for (let j = 0; j < lanes_count; j++) {
+    for (let j = 0; j < lane_count; j++) {
       const { lane, size } = parseLane(view, lanes_offset);
       lanes_offset += size;
       lanes.push(lane);
@@ -168,13 +168,24 @@ const parseCrossroads = (buffer: ArrayBuffer, count: number) => {
   const view = new DataView(buffer);
 
   const crossroads: Crossroad[] = [];
+  let crossroad_offset = 0;
 
   for (let i = 0; i < count; i++) {
-    const crossroad_id = view.getUint32(i * CROSSROAD_STRUCT_SIZE);
-    const node_id = view.getBigUint64(i * CROSSROAD_STRUCT_SIZE + 4);
-    const has_traffic_light = view.getInt8(i * CROSSROAD_STRUCT_SIZE + 12) != 0;
-    const lat = view.getFloat32(i * CROSSROAD_STRUCT_SIZE + 13);
-    const lng = view.getFloat32(i * CROSSROAD_STRUCT_SIZE + 17);
+    const crossroad_id = view.getUint32(crossroad_offset);
+    const node_id = view.getBigUint64(crossroad_offset + 4);
+    const has_traffic_light = view.getInt8(crossroad_offset + 12) != 0;
+    const lat = view.getFloat32(crossroad_offset + 13);
+    const lng = view.getFloat32(crossroad_offset + 17);
+    const lane_count = view.getUint32(crossroad_offset + 21);
+
+    const lanes: Lane[] = [];
+    let lanes_offset = crossroad_offset + 25;
+
+    for (let j = 0; j < lane_count; j++) {
+      const { lane, size } = parseLane(view, lanes_offset);
+      lanes_offset += size;
+      lanes.push(lane);
+    }
 
     crossroads.push({
       id: crossroad_id,
@@ -182,10 +193,13 @@ const parseCrossroads = (buffer: ArrayBuffer, count: number) => {
       has_traffic_light: has_traffic_light,
       lat: lat,
       lng: lng,
+      lanes: lanes,
     });
+
+    crossroad_offset = lanes_offset;
   }
 
-  return { crossroads: crossroads, size: count * CROSSROAD_STRUCT_SIZE };
+  return { crossroads: crossroads, size: crossroad_offset };
 };
 
 const parseSimulation = (buffer: ArrayBuffer): Simulation => {

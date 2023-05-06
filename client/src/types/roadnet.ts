@@ -49,6 +49,7 @@ export interface Crossroad {
   has_traffic_light: boolean;
   lat: number;
   lng: number;
+  lanes: Lane[];
 }
 
 export interface Simulation {
