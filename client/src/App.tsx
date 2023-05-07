@@ -37,9 +37,9 @@ const App = () => {
           stopTimer();
           return endTime;
         }
-        return prevTime + 0.3;
+        return prevTime + 0.1;
       });
-    }, 300);
+    }, 100);
   };
 
   const stopTimer = () => {

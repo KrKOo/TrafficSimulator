@@ -135,7 +135,7 @@ class Way(EntityBase, metaclass=WithId):
                 and i < len(self.lane_props.forward_lane_turn)
                 else None
             )
-            forward_lanes.append(Lane(lanes_nodes[i], self, True, turns=turns))
+            forward_lanes.append(Lane(lanes_nodes[i], self, None, True, turns=turns))
 
         for i in range(len(forward_lanes)):
             forward_lanes[i].left = (
@@ -151,7 +151,7 @@ class Way(EntityBase, metaclass=WithId):
                 and i < len(self.lane_props.backward_lane_turn)
                 else None
             )
-            backward_lanes.append(Lane(lanes_nodes[i], self, False, turns=turns))
+            backward_lanes.append(Lane(lanes_nodes[i], self, None, False, turns=turns))
 
         for i in range(len(backward_lanes)):
             backward_lanes[i].left = (

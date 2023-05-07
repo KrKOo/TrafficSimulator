@@ -123,7 +123,21 @@ class Crossroad(EntityBase, metaclass=WithId):
                             else to_lane.nodes[0]
                         )
 
-                        self.lanes.append(Lane([from_node, to_node]))
+                        self.lanes.append(Lane([from_node, to_node], crossroad=self))
+
+    def get_lane(self, from_lane: Lane, to_lane: Lane) -> Lane:
+        for lane in self.lanes:
+            if lane.nodes[0] == (
+                from_lane.nodes[0]
+                if not is_incoming_way(self.node, from_lane.way)
+                else from_lane.nodes[-1]
+            ) and lane.nodes[-1] == (
+                to_lane.nodes[-1]
+                if is_incoming_way(self.node, to_lane.way)
+                else to_lane.nodes[0]
+            ):
+                return lane
+        return None
 
     def _update_blockers(self):
         blockers = collections.defaultdict(dict[int, simpy.Resource])

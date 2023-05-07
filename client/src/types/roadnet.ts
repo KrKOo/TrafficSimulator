@@ -17,7 +17,8 @@ export enum Turns {
 export interface Event {
   time: number;
   car_id: number;
-  way: Way;
+  way?: Way;
+  crossroad?: Crossroad;
   lane: Lane;
   position: number;
   speed: number;

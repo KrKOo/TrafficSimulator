@@ -10,14 +10,18 @@ import {
 } from 'types/roadnet';
 import { haversine } from 'utils/math';
 
-const EVENT_STRUCT_SIZE = 6 * 4;
+const EVENT_STRUCT_SIZE = 7 * 4;
 const NODE_STRUCT_SIZE = 8 + 2 * 4;
 const LANE_NODE_STRUCT_SIZE = 8;
 const LANE_STRUCT_SIZE = 4 + 4 + 1 + 8;
 const CROSSROAD_STRUCT_SIZE = 4 + 8 + 1 + 3 * 4;
 const TURN_COUNT = 8;
 
-const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
+const parseEvents = (
+  buffer: ArrayBuffer,
+  ways: Way[],
+  crossroads: Crossroad[]
+) => {
   const view = new DataView(buffer);
 
   const events: Event[] = [];
@@ -25,17 +29,30 @@ const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
   for (let i = 0; i < buffer.byteLength; i += EVENT_STRUCT_SIZE) {
     const time = view.getFloat32(i);
     const car_id = view.getUint32(i + 4);
-    const way_id = view.getUint32(i + 8);
-    const lane_id = view.getUint32(i + 12);
-    const position = view.getFloat32(i + 16);
-    const speed = view.getFloat32(i + 20);
+    const way_id = view.getInt32(i + 8);
+    const crossroad_id = view.getInt32(i + 12);
+    const lane_id = view.getUint32(i + 16);
+    const position = view.getFloat32(i + 20);
+    const speed = view.getFloat32(i + 24);
 
-    const way = ways.find((way) => way.id == way_id);
-    if (!way) {
-      continue;
+    let way: Way | undefined = undefined;
+    if (way_id != -1) {
+      way = ways.find((way) => way.id == way_id);
+      if (!way) {
+        continue;
+      }
     }
 
-    const lane = way.lanes.find((lane) => lane.id == lane_id);
+    let crossroad: Crossroad | undefined = undefined;
+    if (crossroad_id != -1) {
+      crossroad = crossroads.find((crossroad) => crossroad.id == crossroad_id);
+      if (!crossroad) {
+        continue;
+      }
+    }
+
+    const lane_parent = way || crossroad;
+    const lane = lane_parent!.lanes.find((lane) => lane.id == lane_id);
     if (!lane) {
       continue;
     }
@@ -44,6 +61,7 @@ const parseEvents = (buffer: ArrayBuffer, ways: Way[]) => {
       time: time,
       car_id: car_id,
       way: way,
+      crossroad: crossroad,
       lane: lane,
       position: position,
       speed: speed,
@@ -228,7 +246,7 @@ const parseSimulation = (buffer: ArrayBuffer): Simulation => {
   );
 
   const eventsOffset = crossroadsOffset + crossroadsSize;
-  const events = parseEvents(buffer.slice(eventsOffset), ways);
+  const events = parseEvents(buffer.slice(eventsOffset), ways, crossroads);
 
   return { nodes: nodes, ways: ways, crossroads: crossroads, events: events };
 };

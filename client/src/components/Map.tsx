@@ -21,7 +21,8 @@ interface CarProps {
   time: number;
   position: number;
   coords?: LatLng;
-  way: Way;
+  way?: Way;
+  crossroad?: Crossroad;
   lane: Lane;
   speed: number;
 }
@@ -39,6 +40,7 @@ const getCarPropsInTime = (events: Event[], max_time: number) => {
       time: event.time,
       position: event.position,
       way: event.way,
+      crossroad: event.crossroad,
       lane: event.lane,
       speed: event.speed,
     });
@@ -251,8 +253,8 @@ const Roadnet = React.memo(({ simulation }: RoadnetProps) => {
                   key={key}
                   positions={lane.nodes}
                   dashOffset='50'
-                  color={'blue'}
-                  weight={2}
+                  color={'gray'}
+                  weight={1}
                 />
               );
             })}

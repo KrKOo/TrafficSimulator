@@ -1,3 +1,9 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from entities.Crossroad import Crossroad
+
 import struct
 from .Entity import SimulationEntity, EntityBase, WithId
 from entities import Way, Car
@@ -11,6 +17,7 @@ class Lane(EntityBase, metaclass=WithId):
         self,
         nodes,
         way: Way = None,
+        crossroad: Crossroad = None,
         is_forward: bool = True,
         turns: list[Turn] = None,
     ):
@@ -20,6 +27,7 @@ class Lane(EntityBase, metaclass=WithId):
         self.turns = turns if turns is not None else []
         self.nodes: list[LatLng] = nodes
         self.way: Way = way
+        self.crossroad = crossroad
         self.length = self._get_length()
 
         # Neighbour lanes
