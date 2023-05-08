@@ -11,7 +11,7 @@ import struct
 
 from .Node import Node
 from .Lane import Lane
-from utils import Turn
+from utils import Turn, LatLng
 from utils.map_geometry import is_incoming_way, angle_between_nodes
 from .Entity import EntityBase, WithId
 
@@ -30,6 +30,30 @@ class CrossroadTurn:
 
     def __repr__(self) -> str:
         return f"CrossroadTurn(through={self.through.id if self.through else None}, left={self.left.id if self.left else None}, right={self.right.id if self.right else None})"
+
+
+class BlockableLane(Lane):
+    def __init__(
+        self,
+        env: simpy.Environment,
+        nodes: list[LatLng],
+        way: Way = None,
+        crossroad: Crossroad = None,
+        is_forward: bool = True,
+        turns: list[Turn] = None,
+    ):
+        super().__init__(nodes, way, crossroad, is_forward, turns)
+        self.env = env
+        self.blocker = simpy.Resource(self.env, capacity=1)
+
+    def block(self):
+        return self.blocker.request()
+
+    def unblock(self):
+        return self.blocker.release()
+
+    def is_blocked(self):
+        return self.blocker.count > 0
 
 
 class Crossroad(EntityBase, metaclass=WithId):
@@ -123,7 +147,11 @@ class Crossroad(EntityBase, metaclass=WithId):
                             else to_lane.nodes[0]
                         )
 
-                        self.lanes.append(Lane([from_node, to_node], crossroad=self))
+                        self.lanes.append(
+                            BlockableLane(
+                                self.env, [from_node, to_node], crossroad=self
+                            )
+                        )
 
     def get_lane(self, from_lane: Lane, to_lane: Lane) -> Lane:
         for lane in self.lanes:
