@@ -66,12 +66,12 @@ class Way(EntityBase, metaclass=WithId):
         self._next_crossroad: Crossroad = None
         self._prev_crossroad: Crossroad = None
 
+        self.length = None
         self.nodes = nodes if nodes is not None else []
 
         self.roads = self._init_roads()
 
-    @property
-    def length(self):
+    def _get_length(self):
         length = 0
         for i in range(len(self.nodes) - 1):
             length += haversine(self.nodes[i].pos, self.nodes[i + 1].pos)
@@ -89,6 +89,7 @@ class Way(EntityBase, metaclass=WithId):
                 node.remove_way(self)
 
         self._nodes = nodes
+        self.length = self._get_length()
 
         for node in self._nodes:
             if self not in node.ways:

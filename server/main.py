@@ -1,9 +1,7 @@
 from matplotlib import pyplot as plt
 import simpy
-import random
-import json
 
-from modules import Parser
+from modules import Parser, VehicleSpawner
 from entities import Car, Calendar
 from utils import plot
 
@@ -16,7 +14,19 @@ if __name__ == "__main__":
 
     # parser = Parser(env)
 
-    # parser.parse("data/clean_lipuvka.osm")
+    # parser.parse("data/clean_brno.osm")
+    # calendar = Calendar(env)
+    # spawner = VehicleSpawner(env, calendar, parser.ways)
+
+    # print("Spawning vehicles...")
+    # spawner.spawn_multiple(1000)
+
+    # print("Simulating...")
+
+    # env.run(until=1000)
+
+    # for vehicle in spawner.vehicles:
+    #     vehicle.calendar_car_update()
 
     # plt.axes().set_aspect("equal", "box")
     # plot.plot_ways(plt, parser.ways)

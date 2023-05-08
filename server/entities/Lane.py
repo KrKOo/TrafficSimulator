@@ -52,6 +52,9 @@ class Lane(EntityBase, metaclass=WithId):
     def first(self):
         return self.queue[-1] if len(self.queue) > 0 else None
 
+    def has_car(self, car: SimulationEntity):
+        return car in self.queue
+
     def put(self, car: SimulationEntity):
         self.queue.insert(0, car)
 

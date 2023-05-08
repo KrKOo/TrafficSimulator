@@ -181,6 +181,32 @@ class Car(SimulationEntity, metaclass=WithId):
         if not self.is_first_in_lane:
             queue_position = self.lane.get_car_position(self)
             return self.lane.queue[queue_position + 1]
+        return None
+
+    @property
+    def car_ahead_multiple_lanes(self) -> "Car":
+        if not self.is_first_in_lane:
+            queue_position = self.lane.get_car_position(self)
+            return self.lane.queue[queue_position + 1]
+        else:
+            car_in_next_lane = (
+                self._next_lanes[0].last
+                if len(self._next_lanes) > 0
+                and self._next_lanes[0].way != self.lane.way
+                else None
+            )
+
+            if car_in_next_lane is None:
+                car_in_next_next_lane = (
+                    self._next_lanes[1].last
+                    if len(self._next_lanes) > 1
+                    and self._next_lanes[1].way != self.lane.way
+                    else None
+                )
+
+            res = car_in_next_lane or car_in_next_next_lane
+
+            return res if res is not None and res.car_ahead != self else None
 
     @property
     def car_behind(self) -> "Car":
@@ -215,6 +241,12 @@ class Car(SimulationEntity, metaclass=WithId):
 
         if car_ahead.lane == self.lane:
             return car_ahead.position - self.position - (car_ahead.length + MIN_GAP)
+        else:
+            return (
+                (self.lane.length - self.position)
+                + car_ahead.position
+                - (car_ahead.length + MIN_GAP)
+            )
 
     @property
     def time_to_reach_car_ahead(self) -> float:
@@ -226,7 +258,7 @@ class Car(SimulationEntity, metaclass=WithId):
         if self.speed <= self.car_ahead.speed:
             return math.inf
 
-        return (distance / (self.speed - self.car_ahead.speed)) * 3600
+        return (distance / (self.speed - self.car_ahead_multiple_lanes.speed)) * 3600
 
     @property
     def next_crossroad(self) -> Crossroad:
@@ -433,7 +465,7 @@ class Car(SimulationEntity, metaclass=WithId):
     def switch_closer_to_lane_process(self, to_lane: Lane):
         direction = self.get_lane_direction(self.lane, to_lane)
         if direction is None:
-            return self.lane
+            return CarState.Crossing
 
         destination_lane = (
             self.lane.right if direction == Direction.Right else self.lane.left
@@ -446,7 +478,8 @@ class Car(SimulationEntity, metaclass=WithId):
 
             if blocking_car:
                 if blocking_car.speed == 0:
-                    print(f"Car {self.id} waiting for car {blocking_car.id}")
+                    if blocking_car.state != CarState.Queued:
+                        return CarState.Despawning
                     self.speed = 0
                     yield blocking_car.update_event & self.env.timeout(1)
                     self.speed = self.desired_speed
@@ -469,7 +502,10 @@ class Car(SimulationEntity, metaclass=WithId):
         self.calendar_car_update()
         self.poke_car_behind(self.car_behind)
 
+        return CarState.Crossing
+
     def drive_to_lane_percentage(self, lane_percentage: float):
+        print(f"Car {self.id} driving to {lane_percentage}%")
         lane_position = lane_percentage / 100 * self.lane.length
 
         if lane_position < self.position:
@@ -501,7 +537,9 @@ class Car(SimulationEntity, metaclass=WithId):
 
         self.speed = self.desired_speed
 
-        p = yield self.env.process(self.drive_to_lane_percentage(50))
+        p = yield self.env.process(
+            self.drive_to_lane_percentage(random.randint(30, 80))
+        )
         print(
             f"Car {self.id} is at {self.lane_percentage}% of way {self.way.osm_id} at {self.env.now}"
         )
@@ -513,9 +551,13 @@ class Car(SimulationEntity, metaclass=WithId):
             print(
                 f"Car {self.id} is switching lane at {self.lane_percentage}% of way {self.way.osm_id} at {self.env.now}"
             )
-            yield self.env.process(
+            p = yield self.env.process(
                 self.switch_closer_to_lane_process(self._lane_to_switch)
             )
+
+            if CarState(p.value) != CarState.Crossing:
+                return CarState(p.value)
+
             print(
                 f"Car {self.id} switched lane at {self.lane_percentage}% of way {self.way.osm_id} at {self.env.now}"
             )
@@ -576,10 +618,27 @@ class Car(SimulationEntity, metaclass=WithId):
             return CarState.Crossing
 
         self.speed = min(self.car_ahead.speed, self.desired_speed)
+        original_car_ahead = self.car_ahead
+        lane_end_timeout = self.env.timeout(
+            self.time_to_be_at_position(self.lane.length)
+        )
+        yield self.environment_update_event | self._car_ahead_update_event | lane_end_timeout
 
-        yield self.environment_update_event | self._car_ahead_update_event
+        if lane_end_timeout.processed:
+            return CarState.Waiting
+
+        if self.is_first_in_lane:
+            car_ahead = self.car_ahead_multiple_lanes
+            self.speed = (
+                car_ahead.speed
+                if car_ahead and car_ahead.position <= car_ahead.length + MIN_GAP
+                else self.desired_speed  # TODO: Careful
+            )
+            yield self.env.timeout(self.time_to_be_at_position(self.lane.length))
+            return CarState.Waiting
+
         print(f"Car {self.id} queue {[car.id for car in self.lane.queue]}")
-        if self.car_ahead:  # TODO: check if it is the same car ahead
+        if self.car_ahead and self.car_ahead == original_car_ahead:
             print(
                 f"Car ahead {self.car_ahead.id} updated, {[car.id for car in self.lane.queue]}"
             )
@@ -588,7 +647,7 @@ class Car(SimulationEntity, metaclass=WithId):
             return CarState.Crossing  # leave the queue
 
     def crossroad_crossing_process(self):
-        self.speed = self.desired_speed
+        self.calendar_car_update()
 
         p = yield self.env.process(self.drive_to_lane_percentage(100))
 
@@ -598,12 +657,13 @@ class Car(SimulationEntity, metaclass=WithId):
 
             return CarState(p.value)
 
-        self.speed = self.desired_speed
+        self.calendar_car_update()
+        # self.speed = self.desired_speed
         car_behind_in_prev_lane = self.car_behind
 
         self.lane.pop(self)
-        self.way = self._next_way
         self.lane = self._next_lanes.pop(0)
+        self.way = self.lane.way
         self.lane.put(self)
 
         self.position = 0
@@ -618,20 +678,22 @@ class Car(SimulationEntity, metaclass=WithId):
         return CarState.Crossing
 
     def waiting_process(self):
+        prev_speed = self.speed
         self.speed = 0
         if len(self._next_lanes) == 0:
             return CarState.Despawning
 
-        if not self._next_crossroad_blocked:
-            print(
-                f"Car {self.id} blocking crossroad {self.next_crossroad.id} at {self.env.now}"
-            )
-            # yield self.env.process(self._wait_and_block_crossroad())
-            yield self.env.timeout(0)
-            print(
-                f"Car {self.id} blocked crossroad {self.next_crossroad.id} at {self.env.now}"
-            )
+        # if not self._next_crossroad_blocked:
+        #     print(
+        #         f"Car {self.id} blocking crossroad {self.next_crossroad.id} at {self.env.now}"
+        #     )
+        #     yield self.env.process(self._wait_and_block_crossroad())
+        #     print(
+        #         f"Car {self.id} blocked crossroad {self.next_crossroad.id} at {self.env.now}"
+        #     )
 
+        # if len(self.next_crossroad.ways) > 2:
+        yield self.env.timeout(0.001)
         car_behind_in_prev_lane = self.car_behind
 
         if not self.is_first_in_lane:
@@ -647,6 +709,7 @@ class Car(SimulationEntity, metaclass=WithId):
         self.poke_car_behind(car_behind_in_prev_lane)
 
         if self.way is None:
+            self.speed = prev_speed
             return CarState.CrossingCrossroad
         else:
             next_path = self._get_next_path()
@@ -743,7 +806,7 @@ class Car(SimulationEntity, metaclass=WithId):
 
     def calendar_car_update(self):
         print(
-            f"Car {self.id} updated at {self.env.now}, position {self.position}, lane_percentage {self.lane_percentage} ,speed {self.speed}, state {self.state.name}, way {(self.way.id, self.way.osm_id) if self.way else None}, lane {self.lane.id}, car ahead {(self.car_ahead.id, self.car_ahead.lane_percentage) if self.car_ahead else None}, car behind {(self.car_behind.id, self.car_behind.lane_percentage) if self.car_behind else None}"
+            f"Car {self.id} updated at {self.env.now}, position {self.position}, lane_percentage {self.lane_percentage} ,speed {self.speed}, state {self.state.name}, way {(self.way.id, self.way.osm_id) if self.way else None}, lane {self.lane.id}, queue: {[car.id for car in self.lane.queue]}, car ahead {(self.car_ahead.id, self.car_ahead.lane_percentage) if self.car_ahead else None}, car behind {(self.car_behind.id, self.car_behind.lane_percentage) if self.car_behind else None}"
         )
         self.calendar.add_event(
             Event(
