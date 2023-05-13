@@ -15,8 +15,9 @@ from .Entity import SimulationEntity, WithId
 from .Event import Event
 from .Calendar import Calendar
 from .Lane import Lane
-from .Crossroad import Crossroad
+from .Crossroad import Crossroad, BlockableLane
 from utils import Turn, LatLng
+from utils.map_geometry import is_incoming_way
 from utils.math import haversine
 from utils.globals import MIN_GAP, CROSSROAD_BLOCKING_TIME
 
@@ -71,8 +72,12 @@ class Car(SimulationEntity, metaclass=WithId):
             next_path if next_path else (None, [], None)
         )
 
-        self._crossroad_blockers: list[list[simpy.Resource]] = []
-        self._blocker_requests: list[list[simpy.Request]] = []
+        self._blocked_crossroad_lanes: list[list[BlockableLane]] = []
+        self._lane_block_requests: list[list[simpy.Request]] = []
+
+        # self._crossroad_blockers: list[list[simpy.Resource]] = []
+        # self._blocker_requests: list[list[simpy.Request]] = []
+
         self._next_crossroad_blocked = False
         self._crossroad_unblock_proc = None
 
@@ -110,7 +115,7 @@ class Car(SimulationEntity, metaclass=WithId):
         # self.env.process(self.unblock_all_crossroads_but_one())
 
     def unblock_all_crossroads_but_one(self):
-        while len(self._crossroad_blockers) > 1:
+        while len(self._blocked_crossroad_lanes) > 1:
             self._unblock_crossroad()
 
     @property
@@ -134,8 +139,8 @@ class Car(SimulationEntity, metaclass=WithId):
 
         self.trigger_update_event()
 
-        if len(self._crossroad_blockers) > 1 or (
-            not self._next_crossroad_blocked and len(self._crossroad_blockers) == 1
+        if len(self._blocked_crossroad_lanes) > 1 or (
+            not self._next_crossroad_blocked and len(self._blocked_crossroad_lanes) == 1
         ):
             if self._crossroad_unblock_proc:
                 self._crossroad_unblock_proc.interrupt()
@@ -280,6 +285,42 @@ class Car(SimulationEntity, metaclass=WithId):
         return self.time_to_travel_distance(dest_position - self.position)
 
     @property
+    def has_car_on_right(self):
+        right_way = self.next_crossroad.turns[self.way].right
+        if right_way is None:
+            return False
+
+        right_lanes = (
+            right_way.lanes.forward
+            if is_incoming_way(self.next_crossroad.node, right_way)
+            else right_way.lanes.backward
+        )
+
+        for lane in right_lanes:
+            first_car = lane.first
+
+            if (
+                first_car is not None
+                and first_car.time_to_be_at_position(lane.length)
+                < self.time_to_be_at_position(self.lane.length)
+                + 3  # TODO: Fix constant
+            ):
+                print(
+                    f"Car {self.id} has car {first_car.id} on right at {self.env.now}"
+                )
+                return True
+
+        return False
+
+    @property
+    def driving_on_main_way(self):
+        if (
+            self.way in self.next_crossroad.main_ways
+            and self._next_way in self.next_crossroad.main_ways
+        ):
+            return True
+
+    @property
     def next_way_lane(self) -> Lane:
         return [
             next_lane for next_lane in self._next_lanes if next_lane.way is not None
@@ -290,22 +331,18 @@ class Car(SimulationEntity, metaclass=WithId):
         if self._next_way is None:
             return False
 
-        blockers = self.next_crossroad.get_conflicting_lane_blockers(
+        lanes = self.next_crossroad.get_conflicting_lanes(
             (self.way, self.lane), (self._next_way, self.next_way_lane)
         )
 
-        print(
-            f"Car {self.id} Crossroad {self.next_crossroad.id} blockers: {[blocker.count for blocker in blockers]}"
-        )
-
         next_crossroad_blocker_requests = (
-            self._blocker_requests[-1] if len(self._blocker_requests) > 0 else []
+            self._lane_block_requests[-1] if len(self._lane_block_requests) > 0 else []
         )
 
-        for blocker in blockers:
+        for lane in lanes:
             if (
-                blocker.count > 0
-                and blocker.users[0] not in next_crossroad_blocker_requests
+                lane.blocker.count > 0
+                and lane.users[0] not in next_crossroad_blocker_requests
             ):
                 return True
 
@@ -331,36 +368,43 @@ class Car(SimulationEntity, metaclass=WithId):
         if self._next_way is None:
             return self.env.timeout(0)
 
-        blockers = self.next_crossroad.get_conflicting_lane_blockers(
-            (self.way, self.lane), (self._next_way, self.next_way_lane)
-        )
+        # lanes = self.next_crossroad.get_conflicting_lanes(
+        #     (self.way, self.lane), (self._next_way, self.next_way_lane)
+        # )
 
-        self._crossroad_blockers.append(blockers)
+        lanes = []
+        lane = self.next_crossroad.get_lane(self.lane, self.next_way_lane)
+        if lane is not None:
+            lanes.append(lane)
 
-        blocker_requests = [blocker.request() for blocker in blockers]
+        self._blocked_crossroad_lanes.append(lanes)
 
-        self._blocker_requests.append(blocker_requests)
+        blocker_requests = []
+        for lane in lanes:
+            blocker_requests.append(lane.request())
+
+        self._lane_block_requests.append(blocker_requests)
 
         return self.env.all_of(blocker_requests)
 
     def _unblock_crossroad(self):
-        if len(self._crossroad_blockers) == 0:
+        if len(self._blocked_crossroad_lanes) == 0:
             self._crossroad_unblock_proc = None
             return
 
-        blockers = self._crossroad_blockers.pop(0)
-        blocker_requests = self._blocker_requests.pop(0)
+        lanes = self._blocked_crossroad_lanes.pop(0)
+        lane_requests = self._lane_block_requests.pop(0)
 
-        for idx, blocker in enumerate(blockers):
-            blocker.release(blocker_requests[idx])
+        for idx, lane in enumerate(lanes):
+            lane.release(lane_requests[idx])
 
         self._crossroad_unblock_proc = None
         print(
-            f"Car {self.id} Crossroad unblocked at {self.env.now}, {[blocker.count for blocker in blockers]}"
+            f"Car {self.id} Crossroad unblocked at {self.env.now}, {[lane.blocker.count for lane in lanes]}"
         )
 
     def _release_blockers(self):
-        while len(self._crossroad_blockers) > 0:
+        while len(self._blocked_crossroad_lanes) > 0:
             self._unblock_crossroad()
 
     def _wait_and_block_crossroad(self):
@@ -535,6 +579,9 @@ class Car(SimulationEntity, metaclass=WithId):
             print(f"Car {self.id} lane crossroad {self.lane.crossroad.id}")
             return CarState.CrossingCrossroad
 
+        if self.way is None:
+            print("WAY IS NONE AT CROSSING")
+
         self.speed = self.desired_speed
 
         p = yield self.env.process(
@@ -587,15 +634,19 @@ class Car(SimulationEntity, metaclass=WithId):
         if CarState(p.value) != CarState.Undefinded:
             return p.value
 
-        # if not self.is_next_crossroad_blocked and self.is_first_in_lane:
-        #     print(
-        #         f"Car {self.id} blocking near crossroad {self.way.next_crossroad.id if self.lane.is_forward else self.way.prev_crossroad.id}, way: {self.way.id} at {self.env.now}"
-        #     )
-        #     yield self._block_next_crossroad()  # should be instant
-        #     self._next_crossroad_blocked = True
-        #     print(
-        #         f"Car {self.id} blocked near crossroad {self.way.next_crossroad.id if self.lane.is_forward else self.way.prev_crossroad.id} at {self.env.now}"
-        #     )
+        if (
+            not self.is_next_crossroad_blocked
+            and self.is_first_in_lane
+            and (self.driving_on_main_way or not self.has_car_on_right)
+        ):
+            print(
+                f"Car {self.id} blocking near crossroad {self.way.next_crossroad.id if self.lane.is_forward else self.way.prev_crossroad.id}, way: {self.way.id} at {self.env.now}"
+            )
+            yield self._block_next_crossroad()  # should be instant
+            self._next_crossroad_blocked = True
+            print(
+                f"Car {self.id} blocked near crossroad {self.way.next_crossroad.id if self.lane.is_forward else self.way.prev_crossroad.id} at {self.env.now}"
+            )
 
         p = yield self.env.process(self.drive_to_lane_percentage(100))
         if CarState(p.value) != CarState.Undefinded:
@@ -683,14 +734,14 @@ class Car(SimulationEntity, metaclass=WithId):
         if len(self._next_lanes) == 0:
             return CarState.Despawning
 
-        # if not self._next_crossroad_blocked:
-        #     print(
-        #         f"Car {self.id} blocking crossroad {self.next_crossroad.id} at {self.env.now}"
-        #     )
-        #     yield self.env.process(self._wait_and_block_crossroad())
-        #     print(
-        #         f"Car {self.id} blocked crossroad {self.next_crossroad.id} at {self.env.now}"
-        #     )
+        if not self._next_crossroad_blocked and self.way is not None:
+            print(
+                f"Car {self.id} blocking crossroad {self.next_crossroad.id} at {self.env.now}"
+            )
+            yield self.env.process(self._wait_and_block_crossroad())
+            print(
+                f"Car {self.id} blocked crossroad {self.next_crossroad.id} at {self.env.now}"
+            )
 
         # if len(self.next_crossroad.ways) > 2:
         yield self.env.timeout(0.001)
@@ -712,6 +763,9 @@ class Car(SimulationEntity, metaclass=WithId):
             self.speed = prev_speed
             return CarState.CrossingCrossroad
         else:
+            print(
+                f"Car {self.id} switched way to {self.way.id}/{self.way.osm_id} at {self.env.now}"
+            )
             next_path = self._get_next_path()
             (
                 self._next_way,

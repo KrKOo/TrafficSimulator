@@ -20,6 +20,7 @@ class Lane(EntityBase, metaclass=WithId):
         crossroad: Crossroad = None,
         is_forward: bool = True,
         turns: list[Turn] = None,
+        next_lanes: list["Lane"] = None,
     ):
         super().__init__()
         self.id = next(self._ids)
@@ -33,6 +34,7 @@ class Lane(EntityBase, metaclass=WithId):
         # Neighbour lanes
         self.right: Lane = None
         self.left: Lane = None
+        self.next_lanes = next_lanes if next_lanes is not None else []
 
         # First car in queue is the last one on the lane
         self.queue: list[Car] = []

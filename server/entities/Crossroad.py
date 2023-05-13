@@ -41,19 +41,24 @@ class BlockableLane(Lane):
         crossroad: Crossroad = None,
         is_forward: bool = True,
         turns: list[Turn] = None,
+        next_lanes: list[Lane] = None,
     ):
-        super().__init__(nodes, way, crossroad, is_forward, turns)
+        super().__init__(nodes, way, crossroad, is_forward, turns, next_lanes)
         self.env = env
-        self.blocker = simpy.Resource(self.env, capacity=1)
+        self.blocker = simpy.Resource(self.env, capacity=5)
 
-    def block(self):
+    def request(self):
         return self.blocker.request()
 
-    def unblock(self):
-        return self.blocker.release()
+    def release(self, request):
+        return self.blocker.release(request)
 
     def is_blocked(self):
         return self.blocker.count > 0
+
+    @property
+    def users(self):
+        return self.blocker.users
 
 
 class Crossroad(EntityBase, metaclass=WithId):
@@ -120,7 +125,7 @@ class Crossroad(EntityBase, metaclass=WithId):
     def update(self):
         self._update_turns()
         self._update_main_ways()
-        self._update_blockers()
+        # self._update_blockers()
         self._update_lanes()
 
     def _update_lanes(self):
@@ -146,12 +151,14 @@ class Crossroad(EntityBase, metaclass=WithId):
                             if is_to_way_incoming
                             else to_lane.nodes[0]
                         )
-
-                        self.lanes.append(
-                            BlockableLane(
-                                self.env, [from_node, to_node], crossroad=self
-                            )
+                        new_crossroad_lane = BlockableLane(
+                            self.env,
+                            [from_node, to_node],
+                            crossroad=self,
+                            next_lanes=[to_lane],
                         )
+                        self.lanes.append(new_crossroad_lane)
+                        from_lane.next_lanes.append(new_crossroad_lane)
 
     def get_lane(self, from_lane: Lane, to_lane: Lane) -> Lane:
         for lane in self.lanes:
@@ -167,108 +174,164 @@ class Crossroad(EntityBase, metaclass=WithId):
                 return lane
         return None
 
-    def _update_blockers(self):
-        blockers = collections.defaultdict(dict[int, simpy.Resource])
+    # def _update_blockers(self):
+    #     blockers = collections.defaultdict(dict[int, simpy.Resource])
 
+    #     for way in self._ways:
+    #         for lane in way.lanes:
+    #             blockers[way.id][lane.id] = simpy.Resource(self.env, 1)
+
+    #     self.blockers = blockers
+
+    def lane_begin_way(self, lane: Lane) -> Way:
         for way in self._ways:
-            for lane in way.lanes:
-                blockers[way.id][lane.id] = simpy.Resource(self.env, 1)
+            way_in_lanes = (
+                way.lanes.forward
+                if is_incoming_way(self.node, way)
+                else way.lanes.backward
+            )
 
-        self.blockers = blockers
+            for way_lane in way_in_lanes:
+                if lane in way_lane.next_lanes:
+                    return way
 
-    def get_conflicting_lane_blockers(
+    def lane_end_way(self, lane: Lane) -> Way:
+        next_lane_count = len(lane.next_lanes)
+
+        if next_lane_count == 0:
+            return None
+        elif next_lane_count == 1:
+            return lane.next_lanes[0].way
+        else:
+            return lane.way
+
+    def lanes_to_right(self, lane: Lane) -> list[Lane]:
+        lanes = []
+        next_lane = lane.right
+
+        while next_lane is not None:
+            lanes.append(next_lane)
+            next_lane = next_lane.right
+
+        return lanes
+
+    def lanes_to_left(self, lane: Lane) -> list[Lane]:
+        lanes = []
+        next_lane = lane.left
+
+        while next_lane is not None:
+            lanes.append(next_lane)
+            next_lane = next_lane.left
+
+        return lanes
+
+    def get_conflicting_lanes(
         self, from_way_lane: tuple[Way, Lane], to_way_lane: tuple[Way, Lane]
-    ) -> list[simpy.Resource]:
-        turn_direction = self._get_way_turn(from_way_lane[0], to_way_lane[0])
-        res_blockers: list[simpy.Resource] = []
+    ) -> list[BlockableLane]:
+        from_way, from_lane = from_way_lane
+        to_way, to_lane = to_way_lane
+        crossing_lane = self.get_lane(from_lane, to_lane)
 
-        res_blockers.append(self.blockers[from_way_lane[0].id][from_way_lane[1].id])
-        res_blockers.append(self.blockers[to_way_lane[0].id][to_way_lane[1].id])
+        turn_direction = self._get_way_turn(from_way_lane[0], to_way_lane[0])
+        res_lanes: list[BlockableLane] = []
 
         if (
-            turn_direction == None and from_way_lane[0].id == to_way_lane[0]
+            turn_direction == None and from_way_lane[0].id == to_way_lane[0].id
         ):  # Turning back
             pass
         elif turn_direction == Turn.through:
             """
-            Block lanes on left side of from_way if turn_direction == Turn.Left or Turn.Through
-            Block all lanes on right side
-            Block lanes in front of from_way if turn_direction == Turn.Left
+            ANY - from_lane -> to_lane
+            right -> not to_lane.right
+            left -> right_way | to_lane.right
+            through -> right_way
             """
 
-            left_way = self.turns[from_way_lane[0]].left
-            if left_way:
-                for lane in self._get_in_lanes(left_way):
-                    if (
-                        len(lane.turns) == 0
-                        or Turn.left in lane.turns
-                        or Turn.through in lane.turns
-                    ):
-                        res_blockers.append(self.blockers[left_way.id][lane.id])
+            for lane in self.lanes:
+                lane_begin_way = self.lane_begin_way(lane)
+                lane_end_way = self.lane_end_way(lane)
 
-            right_way = self.turns[from_way_lane[0]].right
-            if right_way:
-                for lane in self._get_in_lanes(right_way):
-                    res_blockers.append(self.blockers[right_way.id][lane.id])
+                if (
+                    (to_lane in lane.next_lanes and lane != crossing_lane)
+                    or (
+                        lane_begin_way == self.turns[from_way].right
+                        and (lane.next_lanes[0] not in self.lanes_to_right(to_lane))
+                    )
+                    or (
+                        lane_begin_way == self.turns[from_way].left
+                        and (
+                            lane_end_way == self.turns[from_way].right
+                            or lane.next_lanes[0] in self.lanes_to_left(to_lane)
+                        )
+                    )
+                    or (
+                        lane_begin_way == self.turns[from_way].through
+                        and lane_end_way == self.turns[from_way].right
+                    )
+                ):
+                    res_lanes.append(lane)
 
-            front_way = self.turns[from_way_lane[0]].through
-            if front_way:
-                for lane in self._get_in_lanes(front_way):
-                    if (
-                        len(lane.turns) == 0
-                        or Turn.left in lane.turns
-                        or Turn.through in lane.turns
-                    ):
-                        res_blockers.append(self.blockers[front_way.id][lane.id])
         elif turn_direction == Turn.left:
             """
-            Block lanes on left side of from_way if turn_direction == Turn.Left or Turn.Through
-            Block lanes on right side of from_way if turn_direction == Turn.Left or Turn.Through
-            Block lanes in front of from_way if turn_direction == Turn.Through
+            ANY - from_lane -> to_lane
+            right -> to_lane.left | from_way
+            left -> through_way | right_way
+            through -> from_way | to_lane.left
             """
-            left_way = self.turns[from_way_lane[0]].left
-            if left_way:
-                for lane in self._get_in_lanes(left_way):
-                    if (
-                        len(lane.turns) == 0
-                        or Turn.left in lane.turns
-                        or Turn.through in lane.turns
-                    ):
-                        res_blockers.append(self.blockers[left_way.id][lane.id])
 
-            right_way = self.turns[from_way_lane[0]].right
-            if right_way:
-                for lane in self._get_in_lanes(right_way):
-                    if (
-                        len(lane.turns) == 0
-                        or Turn.left in lane.turns
-                        or Turn.through in lane.turns
-                    ):
-                        res_blockers.append(self.blockers[right_way.id][lane.id])
+            for lane in self.lanes:
+                lane_begin_way = self.lane_begin_way(lane)
+                lane_end_way = self.lane_end_way(lane)
 
-            front_way = self.turns[from_way_lane[0]].through
-            if front_way:
-                for lane in self._get_in_lanes(front_way):
-                    if len(lane.turns) == 0 or Turn.through in lane.turns:
-                        res_blockers.append(self.blockers[front_way.id][lane.id])
+                if (
+                    (to_lane in lane.next_lanes and lane != crossing_lane)
+                    or (
+                        lane_begin_way == self.turns[from_way].right
+                        and (
+                            lane.next_lanes[0] in self.lanes_to_left(to_lane)
+                            or lane_end_way == from_way
+                        )
+                    )
+                    or (
+                        lane_begin_way == self.turns[from_way].left
+                        and (
+                            lane_end_way == self.turns[from_way].through
+                            or lane_end_way == self.turns[from_way].right
+                        )
+                    )
+                    or (
+                        lane_begin_way == self.turns[from_way].through
+                        and (
+                            lane_end_way == from_way
+                            or lane.next_lanes[0] in self.lanes_to_left(to_lane)
+                        )
+                    )
+                ):
+                    res_lanes.append(lane)
+
         elif turn_direction == Turn.right:
             """
-            Block lanes on left side of from_way if turn_direction == Turn.Through
-            Block lanes in front of from_way if turn_direction == Turn.Left
+            ANY - from_lane -> to_lane | to_lane.right
             """
-            left_way = self.turns[from_way_lane[0]].left
-            if left_way:
-                for lane in self._get_in_lanes(left_way):
-                    if len(lane.turns) == 0 or Turn.through in lane.turns:
-                        res_blockers.append(self.blockers[left_way.id][lane.id])
 
-            front_way = self.turns[from_way_lane[0]].through
-            if front_way:
-                for lane in self._get_in_lanes(front_way):
-                    if len(lane.turns) == 0 or Turn.left in lane.turns:
-                        res_blockers.append(self.blockers[front_way.id][lane.id])
+            for lane in self.lanes:
+                lane_begin_way = self.lane_begin_way(lane)
+                lane_end_way = self.lane_end_way(lane)
 
-        return res_blockers
+                if (
+                    to_lane in lane.next_lanes and lane != crossing_lane
+                ) or lane.next_lanes[0] in self.lanes_to_right(to_lane):
+                    res_lanes.append(lane)
+
+        for lane in res_lanes:
+            if lane in from_lane.next_lanes:
+                res_lanes.remove(lane)
+
+        print(
+            f"FROM: {from_way.osm_id} TO: {to_way.osm_id}, TURN: {turn_direction}, RES: {[(self.lane_begin_way(lane), self.lane_end_way(lane)) for lane in res_lanes]}"
+        )
+
+        return res_lanes
 
     def _get_in_lanes(self, way: Way) -> list[Lane]:
         return (
