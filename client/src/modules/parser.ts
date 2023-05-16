@@ -1,7 +1,8 @@
 import {
   LatLng,
   Simulation,
-  Event,
+  CarEvent,
+  CrossroadEvent,
   Way,
   Node,
   Lane,
@@ -10,30 +11,33 @@ import {
 } from 'types/roadnet';
 import { haversine } from 'utils/math';
 
-const EVENT_STRUCT_SIZE = 7 * 4;
+const CAR_EVENT_STRUCT_SIZE = 7 * 4;
+const CROSSROAD_EVENT_STRUCT_SIZE = 3 * 4;
 const NODE_STRUCT_SIZE = 8 + 2 * 4;
 const LANE_NODE_STRUCT_SIZE = 8;
 const LANE_STRUCT_SIZE = 4 + 4 + 1 + 8;
-const CROSSROAD_STRUCT_SIZE = 4 + 8 + 1 + 3 * 4;
 const TURN_COUNT = 8;
 
-const parseEvents = (
+const parseCarEvents = (
   buffer: ArrayBuffer,
+  count: number,
   ways: Way[],
   crossroads: Crossroad[]
 ) => {
   const view = new DataView(buffer);
 
-  const events: Event[] = [];
+  const events: CarEvent[] = [];
 
-  for (let i = 0; i < buffer.byteLength; i += EVENT_STRUCT_SIZE) {
-    const time = view.getFloat32(i);
-    const car_id = view.getUint32(i + 4);
-    const way_id = view.getInt32(i + 8);
-    const crossroad_id = view.getInt32(i + 12);
-    const lane_id = view.getUint32(i + 16);
-    const position = view.getFloat32(i + 20);
-    const speed = view.getFloat32(i + 24);
+  let eventOffset = 0;
+
+  for (let i = 0; i < count; i++) {
+    const time = view.getFloat32(eventOffset);
+    const car_id = view.getUint32(eventOffset + 4);
+    const way_id = view.getInt32(eventOffset + 8);
+    const crossroad_id = view.getInt32(eventOffset + 12);
+    const lane_id = view.getUint32(eventOffset + 16);
+    const position = view.getFloat32(eventOffset + 20);
+    const speed = view.getFloat32(eventOffset + 24);
 
     let way: Way | undefined = undefined;
     if (way_id != -1) {
@@ -66,9 +70,56 @@ const parseEvents = (
       position: position,
       speed: speed,
     });
+
+    eventOffset += CAR_EVENT_STRUCT_SIZE;
   }
 
-  return events;
+  return { events: events, size: eventOffset };
+};
+
+const parseCrossroadEvents = (
+  buffer: ArrayBuffer,
+  count: number,
+  crossroads: Crossroad[]
+) => {
+  const view = new DataView(buffer);
+
+  const events: CrossroadEvent[] = [];
+
+  let eventOffset = 0;
+
+  for (let i = 0; i < count; i++) {
+    const time = view.getFloat32(eventOffset);
+    const crossroad_id = view.getUint32(eventOffset + 4);
+    const green_lane_count = view.getUint32(eventOffset + 8);
+
+    let crossroad: Crossroad | undefined = undefined;
+    crossroad = crossroads.find((crossroad) => crossroad.id == crossroad_id);
+    if (!crossroad) {
+      continue;
+    }
+
+    const green_lanes: Lane[] = [];
+    for (let i = 0; i < green_lane_count; i++) {
+      const lane_id = view.getInt32(eventOffset + 12 + i * 4);
+      const lane = crossroad.lanes.find((lane) => lane.id == lane_id);
+      if (!lane) {
+        continue;
+      }
+
+      green_lanes.push(lane);
+    }
+
+    events.push({
+      time: time,
+      crossroad: crossroad,
+      green_lanes: green_lanes,
+    });
+
+    eventOffset += CROSSROAD_EVENT_STRUCT_SIZE + green_lane_count * 4;
+  }
+
+  return { events: events, size: eventOffset };
 };
 
 const parseNode = (view: DataView, offset: number) => {
@@ -226,8 +277,18 @@ const parseSimulation = (buffer: ArrayBuffer): Simulation => {
   const nodesCount = view.getInt32(0);
   const waysCount = view.getInt32(4);
   const crossroadsCount = view.getInt32(8);
+  const carEventCount = view.getInt32(12);
+  const crossroadEventCount = view.getInt32(16);
 
-  const nodesOffset = 12;
+  console.log(
+    nodesCount,
+    waysCount,
+    crossroadsCount,
+    carEventCount,
+    crossroadEventCount
+  );
+
+  const nodesOffset = 20;
   const { nodes, size: nodesSize } = parseNodes(
     buffer.slice(nodesOffset),
     nodesCount
@@ -245,10 +306,29 @@ const parseSimulation = (buffer: ArrayBuffer): Simulation => {
     crossroadsCount
   );
 
-  const eventsOffset = crossroadsOffset + crossroadsSize;
-  const events = parseEvents(buffer.slice(eventsOffset), ways, crossroads);
+  const carEventsOffset = crossroadsOffset + crossroadsSize;
+  const { events: carEvents, size: carEventsSize } = parseCarEvents(
+    buffer.slice(carEventsOffset),
+    carEventCount,
+    ways,
+    crossroads
+  );
 
-  return { nodes: nodes, ways: ways, crossroads: crossroads, events: events };
+  const crossroadEventsOffset = carEventsOffset + carEventsSize;
+  const { events: crossroadEvents, size: crossroadEventsSize } =
+    parseCrossroadEvents(
+      buffer.slice(crossroadEventsOffset),
+      crossroadEventCount,
+      crossroads
+    );
+
+  return {
+    nodes: nodes,
+    ways: ways,
+    crossroads: crossroads,
+    car_events: carEvents,
+    crossroad_events: crossroadEvents,
+  };
 };
 
 export default parseSimulation;

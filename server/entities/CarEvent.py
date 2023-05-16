@@ -1,8 +1,7 @@
 import struct
-from utils import LatLng
 
 
-class Event:
+class CarEvent:
     def __init__(
         self,
         car_id: int,

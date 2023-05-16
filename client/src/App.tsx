@@ -68,7 +68,7 @@ const App = () => {
     setSimulation(data);
     console.log(data);
 
-    const end_time = data.events[data.events.length - 1].time;
+    const end_time = data.car_events[data.car_events.length - 1].time;
     setEndTime(end_time);
 
     setSimulationState('');

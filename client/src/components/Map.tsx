@@ -8,7 +8,15 @@ import {
   Circle,
   Polyline,
 } from 'react-leaflet';
-import { Simulation, Way, Lane, Event, LatLng, Crossroad } from 'types/roadnet';
+import {
+  Simulation,
+  Way,
+  Lane,
+  CarEvent,
+  CrossroadEvent,
+  LatLng,
+  Crossroad,
+} from 'types/roadnet';
 import { haversine } from 'utils/math';
 
 interface MapProps {
@@ -27,7 +35,7 @@ interface CarProps {
   speed: number;
 }
 
-const getCarPropsInTime = (events: Event[], max_time: number) => {
+const getCarPropsInTime = (events: CarEvent[], max_time: number) => {
   const car_props_at_time: Record<number, CarProps[]> = {};
 
   events.forEach((event) => {
@@ -141,12 +149,54 @@ const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
   };
 };
 
+const getCrossroadEventsInTime = (crossroadEvents: CrossroadEvent[]) => {
+  const crossroad_props_in_time: Record<number, CrossroadEvent[]> = {};
+
+  crossroadEvents.forEach((event) => {
+    if (!crossroad_props_in_time[event.crossroad.id]) {
+      crossroad_props_in_time[event.crossroad.id] = [];
+    }
+
+    crossroad_props_in_time[event.crossroad.id].push(event);
+  });
+
+  return crossroad_props_in_time;
+};
+
+const getLastCrossroadEvent = (
+  crossroadEvents: CrossroadEvent[],
+  time: number
+) => {
+  const next_event_index = crossroadEvents.findIndex(
+    (event) => event.time > time
+  );
+
+  let last_event;
+  if (next_event_index === -1) {
+    last_event = crossroadEvents[crossroadEvents.length - 1];
+  } else {
+    last_event = crossroadEvents[next_event_index - 1];
+  }
+
+  if (!last_event) {
+    return null;
+  }
+
+  return last_event;
+};
+
 const Map = ({ simulation, time: time_prop }: MapProps) => {
   const position = { lat: 49.2335, lng: 16.5765 };
   const [time, setTime] = useState<number>(0);
   const [cars, setCars] = useState<CarProps[]>();
+  const [lastCrossroadsEvents, setLastCrossroadEvents] = useState<
+    CrossroadEvent[]
+  >([]);
   const [carPropsInTime, setCarPropsInTime] = useState<
     Record<number, CarProps[]>
+  >({});
+  const [crossroadEventsInTime, setCrossroadEventsInTime] = useState<
+    Record<number, CrossroadEvent[]>
   >({});
 
   useEffect(() => {
@@ -162,13 +212,28 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
       cars_props.push(car_props);
     }
     setCars(cars_props);
+
+    const crossroad_events: CrossroadEvent[] = [];
+    for (const [key, value] of Object.entries(crossroadEventsInTime)) {
+      const crossroad_event = getLastCrossroadEvent(value, time);
+      if (!crossroad_event) {
+        continue;
+      }
+      crossroad_events.push(crossroad_event);
+    }
+
+    setLastCrossroadEvents(crossroad_events);
   }, [time_prop]);
 
   useEffect(() => {
     if (!simulation) return;
-    const carProps = getCarPropsInTime(simulation.events, Infinity);
-    console.log(carProps);
+    const carProps = getCarPropsInTime(simulation.car_events, Infinity);
+    const crossroadEvents = getCrossroadEventsInTime(
+      simulation.crossroad_events
+    );
+
     setCarPropsInTime(carProps);
+    setCrossroadEventsInTime(crossroadEvents);
   }, [simulation]);
 
   return (
@@ -202,6 +267,20 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
       })}
 
       {simulation && <Roadnet simulation={simulation} />}
+
+      {lastCrossroadsEvents.map((crossroad_event) => {
+        return crossroad_event.green_lanes.map((lane, key) => {
+          return (
+            <Polyline
+              key={key}
+              positions={lane.nodes}
+              dashOffset='50'
+              color='green'
+              weight={3}
+            />
+          );
+        });
+      })}
     </MapContainer>
   );
 };
@@ -238,14 +317,14 @@ const Roadnet = React.memo(({ simulation }: RoadnetProps) => {
       {simulation?.crossroads.map((crossroad, key) => {
         return (
           <>
-            {/* {crossroad.has_traffic_light && (
+            {crossroad.has_traffic_light && (
               <Circle
                 center={{ lat: crossroad.lat, lng: crossroad.lng }}
                 color='red'
                 fillColor='green'
-                radius={10}
+                radius={15}
               />
-            )} */}
+            )}
 
             {crossroad.lanes.map((lane, key) => {
               return (

@@ -14,7 +14,7 @@ export enum Turns {
   slight_left,
 }
 
-export interface Event {
+export interface CarEvent {
   time: number;
   car_id: number;
   way?: Way;
@@ -22,6 +22,12 @@ export interface Event {
   lane: Lane;
   position: number;
   speed: number;
+}
+
+export interface CrossroadEvent {
+  time: number;
+  crossroad: Crossroad;
+  green_lanes: Lane[];
 }
 
 export interface Node {
@@ -57,5 +63,6 @@ export interface Simulation {
   nodes: Node[];
   ways: Way[];
   crossroads: Crossroad[];
-  events: Event[];
+  car_events: CarEvent[];
+  crossroad_events: CrossroadEvent[];
 }

@@ -12,7 +12,7 @@ import random
 
 from .Way import Way
 from .Entity import SimulationEntity, WithId
-from .Event import Event
+from .CarEvent import CarEvent
 from .Calendar import Calendar
 from .Lane import Lane
 from .Crossroad import Crossroad, BlockableLane
@@ -347,6 +347,10 @@ class Car(SimulationEntity, metaclass=WithId):
         if self._next_way is None:
             return False
 
+        lane_to_cross = self.next_crossroad.get_lane(self.lane, self.next_way_lane)
+        if lane_to_cross and lane_to_cross.disabled:
+            return True
+
         lanes = self.next_crossroad.get_conflicting_lanes(
             (self.way, self.lane), (self._next_way, self.next_way_lane)
         )
@@ -399,6 +403,8 @@ class Car(SimulationEntity, metaclass=WithId):
 
         blocker_requests = []
         for lane in lanes:
+            if lane.disabled == True:
+                print("Disabled")
             blocker_requests.append(lane.request())
 
         self._lane_block_requests.append(blocker_requests)
@@ -897,8 +903,8 @@ class Car(SimulationEntity, metaclass=WithId):
         print(
             f"Car {self.id} updated at {self.env.now}, position {self.position}, lane_percentage {self.lane_percentage} ,speed {self.speed}, state {self.state.name}, way {(self.way.id, self.way.osm_id) if self.way else None}, lane {self.lane.id}, queue: {[car.id for car in self.lane.queue]}, car ahead {(self.car_ahead.id, self.car_ahead.lane_percentage) if self.car_ahead else None}, car behind {(self.car_behind.id, self.car_behind.lane_percentage) if self.car_behind else None}"
         )
-        self.calendar.add_event(
-            Event(
+        self.calendar.add_car_event(
+            CarEvent(
                 self.id,
                 self.way.id if self.way else None,
                 self.next_crossroad.id if self.way is None else None,

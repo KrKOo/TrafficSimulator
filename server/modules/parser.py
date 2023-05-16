@@ -1,13 +1,15 @@
 import osmium
+import simpy
 from utils import LatLng, str_to_int, Turn, HighwayClass
-from entities import Way, WayLanesProps, Crossroad, Node
+from entities import Way, WayLanesProps, Crossroad, Node, Calendar
 import struct
 
 
 class Parser(osmium.SimpleHandler):
-    def __init__(self, env):
+    def __init__(self, env: simpy.Environment, calendar: Calendar):
         osmium.SimpleHandler.__init__(self)
         self.env = env
+        self.calendar = calendar
         self._nodes: dict(int, Node) = {}
         self.ways: list[Way] = []
         self.crossroads: list[Crossroad] = []
@@ -48,10 +50,8 @@ class Parser(osmium.SimpleHandler):
         crossroads_list = [crossroad.pack() for crossroad in self.crossroads]
 
         return (
-            struct.pack("!III", len(nodes_list), len(ways_list), len(crossroads_list))
-            + b"".join(nodes_list)
-            + b"".join(ways_list)
-            + b"".join(crossroads_list)
+            b"".join(nodes_list) + b"".join(ways_list) + b"".join(crossroads_list),
+            (len(nodes_list), len(ways_list), len(crossroads_list)),
         )
 
     def _parse_lanes(self, w: osmium.osm.Way) -> WayLanesProps:
@@ -139,7 +139,7 @@ class Parser(osmium.SimpleHandler):
     def _create_or_update_crossroad_on_node(self, node: Node) -> Crossroad:
         crossroad = self._get_crossroad(node.id)
         if crossroad is None:
-            crossroad = Crossroad(self.env, node)
+            crossroad = Crossroad(self.env, self.calendar, node)
             self.crossroads.append(crossroad)
 
             way_with_node_in_middle = self._get_way_with_node_in_middle(node)

@@ -4,13 +4,14 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from entities.Way import Way
 
-import math
 import simpy
 import collections
 import struct
 
 from .Node import Node
 from .Lane import Lane
+from .Calendar import Calendar
+from .CrossroadEvent import CrossroadEvent
 from utils import Turn, LatLng
 from utils.map_geometry import is_incoming_way, angle_between_nodes
 from .Entity import EntityBase, WithId
@@ -46,8 +47,17 @@ class BlockableLane(Lane):
         super().__init__(nodes, way, crossroad, is_forward, turns, next_lanes)
         self.env = env
         self.blocker = simpy.Resource(self.env, capacity=5)
+        self.disabled = False
+
+    def disable(self):
+        self.disabled = True
+
+    def enable(self):
+        self.disabled = False
 
     def request(self):
+        if self.disabled:
+            return None
         return self.blocker.request()
 
     def release(self, request):
@@ -62,17 +72,23 @@ class BlockableLane(Lane):
 
 
 class Crossroad(EntityBase, metaclass=WithId):
-    def __init__(self, env: simpy.Environment, node: Node):
+    def __init__(self, env: simpy.Environment, calendar: Calendar, node: Node):
         super().__init__()
         self.id = next(self._ids)
         self.env = env
+        self.calendar = calendar
         self._ways: list[Way] = []
         self.node: Node = node
         self.turns: dict[Way, CrossroadTurn] = {}
         self.blockers: collections.defaultdict[int, dict[int, simpy.Resource]] = {}
-        self.lanes: list[Lane] = []
-
+        self.lanes: list[BlockableLane] = []
         self.main_ways: list[Way] = []
+
+        self._semaphore_process = (
+            self.env.process(self.semaphore_process())
+            if self.has_traffic_light
+            else None
+        )
 
     def __repr__(self):
         way_turns = {}
@@ -160,7 +176,7 @@ class Crossroad(EntityBase, metaclass=WithId):
                         self.lanes.append(new_crossroad_lane)
                         from_lane.next_lanes.append(new_crossroad_lane)
 
-    def get_lane(self, from_lane: Lane, to_lane: Lane) -> Lane:
+    def get_lane(self, from_lane: Lane, to_lane: Lane) -> BlockableLane:
         for lane in self.lanes:
             if lane.nodes[0] == (
                 from_lane.nodes[0]
@@ -174,14 +190,54 @@ class Crossroad(EntityBase, metaclass=WithId):
                 return lane
         return None
 
-    # def _update_blockers(self):
-    #     blockers = collections.defaultdict(dict[int, simpy.Resource])
+    def disable_lanes_beginning_on_way(self, way: Way):
+        if way is None:
+            return
 
-    #     for way in self._ways:
-    #         for lane in way.lanes:
-    #             blockers[way.id][lane.id] = simpy.Resource(self.env, 1)
+        for lane in self.lanes:
+            if self.lane_begin_way(lane) == way:
+                lane.disable()
 
-    #     self.blockers = blockers
+    def enable_all_lanes(self):
+        for lane in self.lanes:
+            lane.enable()
+
+    def disable_all_lanes(self):
+        for lane in self.lanes:
+            lane.disable()
+
+    @property
+    def enabled_lanes(self):
+        return [lane for lane in self.lanes if not lane.disabled]
+
+    def calendar_crossroad_update(self):
+        self.calendar.add_crossroad_event(CrossroadEvent(self.id, self.enabled_lanes))
+
+    def semaphore_process(self):
+        dir1 = (self.ways[0], self.turns[self.ways[0]].through)
+        dir2 = (self.turns[self.ways[0]].left, self.turns[self.ways[0]].right)
+
+        while True:
+            self.enable_all_lanes()
+            self.disable_lanes_beginning_on_way(dir1[0])
+            self.disable_lanes_beginning_on_way(dir1[1])
+            self.calendar_crossroad_update()
+
+            yield self.env.timeout(30)
+            self.disable_all_lanes()
+            self.calendar_crossroad_update()
+
+            yield self.env.timeout(5)
+            self.enable_all_lanes()
+            self.disable_lanes_beginning_on_way(dir2[0])
+            self.disable_lanes_beginning_on_way(dir2[1])
+            self.calendar_crossroad_update()
+
+            yield self.env.timeout(30)
+            self.disable_all_lanes()
+            self.calendar_crossroad_update()
+
+            yield self.env.timeout(5)
 
     def lane_begin_way(self, lane: Lane) -> Way:
         for way in self._ways:
