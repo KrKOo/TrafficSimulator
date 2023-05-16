@@ -183,21 +183,21 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
       />
 
       {cars?.map((car, key) => {
+        if (!car.coords) return null;
+
         return (
-          car.coords && (
-            <Circle
-              key={key}
-              center={car.coords}
-              color='blue'
-              fillColor='lightblue'
-              radius={2}>
-              <Popup>
-                <div>id: {car.id}</div>
-                <div>lane_id: {car.lane.id}</div>
-                <div>speed: {car.speed}</div>
-              </Popup>
-            </Circle>
-          )
+          <Circle
+            key={key}
+            center={car.coords}
+            color='blue'
+            fillColor='lightblue'
+            radius={1.5}>
+            <Popup>
+              <div>id: {car.id}</div>
+              <div>lane_id: {car.lane.id}</div>
+              <div>speed: {car.speed}</div>
+            </Popup>
+          </Circle>
         );
       })}
 
@@ -238,14 +238,14 @@ const Roadnet = React.memo(({ simulation }: RoadnetProps) => {
       {simulation?.crossroads.map((crossroad, key) => {
         return (
           <>
-            {crossroad.has_traffic_light && (
+            {/* {crossroad.has_traffic_light && (
               <Circle
                 center={{ lat: crossroad.lat, lng: crossroad.lng }}
                 color='red'
                 fillColor='green'
                 radius={10}
               />
-            )}
+            )} */}
 
             {crossroad.lanes.map((lane, key) => {
               return (
