@@ -8,7 +8,7 @@ import {
   Lane,
   Crossroad,
   Turns,
-} from 'types/roadnet';
+} from 'types/entities';
 import { haversine } from 'utils/math';
 
 const CAR_EVENT_STRUCT_SIZE = 7 * 4;

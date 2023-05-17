@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import './App.css';
 import parseSimulation from 'modules/parser';
 import Map from 'components/Map';
-import { Simulation } from 'types/roadnet';
+import { Simulation } from 'types/entities';
 import Slider from 'react-slider';
 
 const App = () => {
@@ -56,17 +56,13 @@ const App = () => {
       'http://127.0.0.1:5000' +
         `?vehicle_count=${vehicleCount} + &time_span=${timeSpan} + &seed=${simulationSeed}`
     );
-    console.log('data fetched');
 
     setSimulationState('Parsing results...');
     const arrayBuffer = await res.arrayBuffer();
 
-    console.log('parsing data');
     const data = parseSimulation(arrayBuffer);
-    console.log('data parsed');
 
     setSimulation(data);
-    console.log(data);
 
     const end_time = data.car_events[data.car_events.length - 1].time;
     setEndTime(end_time);
@@ -88,9 +84,17 @@ const App = () => {
           style={{
             display: 'flex',
             flexDirection: 'row',
-            width: '100%',
+            width: '95%',
+            margin: 'auto',
+            alignItems: 'center',
           }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div
+            className='input-container'
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '5px',
+            }}>
             <label htmlFor='vehicle_count'>Vehicle count</label>
             <input
               id='vehicle_count'
@@ -101,7 +105,13 @@ const App = () => {
             />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div
+            className='input-container'
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '5px',
+            }}>
             <label htmlFor='time_span'>Time span [s]</label>
             <input
               type='number'
@@ -111,7 +121,13 @@ const App = () => {
             />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div
+            className='input-container'
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '5px',
+            }}>
             <label htmlFor='seed'>Seed</label>
             <input
               type='number'
@@ -120,10 +136,18 @@ const App = () => {
               onChange={(e) => setSimulationSeed(parseInt(e.target.value))}
             />
           </div>
-          <button onClick={fetchSimulation}>Fetch simulation</button>
-          <button onClick={startTimer}>Play</button>
-          <button onClick={stopTimer}>Pause</button>
 
+          <div>
+            <button className='control-button' onClick={fetchSimulation}>
+              Fetch simulation
+            </button>
+            <button className='control-button' onClick={startTimer}>
+              Play
+            </button>
+            <button className='control-button' onClick={stopTimer}>
+              Pause
+            </button>
+          </div>
           <h3 style={{ margin: 'auto' }}>{sliderTime.toFixed(2)}s</h3>
 
           <h3 style={{ margin: 'auto' }}>{simulationState}</h3>
