@@ -1,4 +1,4 @@
-import { LatLng } from 'types/roadnet';
+import { LatLng } from '../types/entities';
 
 const degToRad = (deg: number) => {
   return deg * (Math.PI / 180);
