@@ -1,5 +1,7 @@
 from entities import Way, Crossroad, Lane
-import matplotlib
+import matplotlib.pyplot
+
+# Helper functions for plotting the roadnet
 
 
 def plot_way(plt: matplotlib.pyplot, way: Way):
@@ -28,10 +30,6 @@ def plot_crossroads(plt: matplotlib.pyplot, crossroads: list[Crossroad]):
             plt.plot(crossroad.node.pos.lng, crossroad.node.pos.lat, "go")
         else:
             plt.plot(crossroad.node.pos.lng, crossroad.node.pos.lat, "bo")
-        # plt.annotate(
-        #     f"{crossroad.id}",
-        #     (crossroad.node.pos.lng, crossroad.node.pos.lat),
-        # )
 
         for lane in crossroad.lanes:
             plot_lane(plt, lane, "b")

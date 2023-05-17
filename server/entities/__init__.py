@@ -5,5 +5,4 @@ from .Entity import *
 from .CarEvent import *
 from .CrossroadEvent import *
 from .Node import *
-from .Road import *
 from .Way import *

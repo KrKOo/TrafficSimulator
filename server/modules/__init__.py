@@ -1,2 +1,2 @@
-from .parser import *
+from .Parser import *
 from .VehicleSpawner import *

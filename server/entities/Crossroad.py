@@ -7,14 +7,17 @@ if TYPE_CHECKING:
 import simpy
 import collections
 import struct
+import math
 
 from .Node import Node
 from .Lane import Lane
+from .BlockableLane import BlockableLane
 from .Calendar import Calendar
 from .CrossroadEvent import CrossroadEvent
-from utils import Turn, LatLng
-from utils.map_geometry import is_incoming_way, angle_between_nodes
 from .Entity import EntityBase, WithId
+from utils import Turn
+from utils.map_geometry import is_incoming_way, angle_between_nodes
+from utils.globals import TRAFFIC_LIGHT_DISABLED_TIME, TRAFFIC_LIGHT_INTERVAL
 
 
 class NextWayOption:
@@ -31,44 +34,6 @@ class CrossroadTurn:
 
     def __repr__(self) -> str:
         return f"CrossroadTurn(through={self.through.id if self.through else None}, left={self.left.id if self.left else None}, right={self.right.id if self.right else None})"
-
-
-class BlockableLane(Lane):
-    def __init__(
-        self,
-        env: simpy.Environment,
-        nodes: list[LatLng],
-        way: Way = None,
-        crossroad: Crossroad = None,
-        is_forward: bool = True,
-        turns: list[Turn] = None,
-        next_lanes: list[Lane] = None,
-    ):
-        super().__init__(nodes, way, crossroad, is_forward, turns, next_lanes)
-        self.env = env
-        self.blocker = simpy.Resource(self.env, capacity=5)
-        self.disabled = False
-
-    def disable(self):
-        self.disabled = True
-
-    def enable(self):
-        self.disabled = False
-
-    def request(self):
-        if self.disabled:
-            return None
-        return self.blocker.request()
-
-    def release(self, request):
-        return self.blocker.release(request)
-
-    def is_blocked(self):
-        return self.blocker.count > 0
-
-    @property
-    def users(self):
-        return self.blocker.users
 
 
 class Crossroad(EntityBase, metaclass=WithId):
@@ -89,22 +54,6 @@ class Crossroad(EntityBase, metaclass=WithId):
             if self.has_traffic_light
             else None
         )
-
-    def __repr__(self):
-        way_turns = {}
-        for way, turns in self.turns.items():
-            way_turns[way.id] = [
-                turns.through.id if turns.through else None,
-                turns.left.id if turns.left else None,
-                turns.right.id if turns.right else None,
-            ]
-
-        text = (
-            f"Crossroad {self.id}:\n"
-            f"Ways: {[way.id for way in  self._ways]}\n"
-            f"Turns: {way_turns}"
-        )
-        return text
 
     def pack(self):
         lanes_bytes = b"".join([lane.pack() for lane in self.lanes])
@@ -141,7 +90,6 @@ class Crossroad(EntityBase, metaclass=WithId):
     def update(self):
         self._update_turns()
         self._update_main_ways()
-        # self._update_blockers()
         self._update_lanes()
 
     def _update_lanes(self):
@@ -223,21 +171,21 @@ class Crossroad(EntityBase, metaclass=WithId):
             self.disable_lanes_beginning_on_way(dir1[1])
             self.calendar_crossroad_update()
 
-            yield self.env.timeout(30)
+            yield self.env.timeout(TRAFFIC_LIGHT_INTERVAL)
             self.disable_all_lanes()
             self.calendar_crossroad_update()
 
-            yield self.env.timeout(5)
+            yield self.env.timeout(TRAFFIC_LIGHT_DISABLED_TIME)
             self.enable_all_lanes()
             self.disable_lanes_beginning_on_way(dir2[0])
             self.disable_lanes_beginning_on_way(dir2[1])
             self.calendar_crossroad_update()
 
-            yield self.env.timeout(30)
+            yield self.env.timeout(TRAFFIC_LIGHT_INTERVAL)
             self.disable_all_lanes()
             self.calendar_crossroad_update()
 
-            yield self.env.timeout(5)
+            yield self.env.timeout(TRAFFIC_LIGHT_DISABLED_TIME)
 
     def lane_begin_way(self, lane: Lane) -> Way:
         for way in self._ways:
@@ -383,10 +331,6 @@ class Crossroad(EntityBase, metaclass=WithId):
             if lane in from_lane.next_lanes:
                 res_lanes.remove(lane)
 
-        print(
-            f"FROM: {from_way.osm_id} TO: {to_way.osm_id}, TURN: {turn_direction}, RES: {[(self.lane_begin_way(lane), self.lane_end_way(lane)) for lane in res_lanes]}"
-        )
-
         return res_lanes
 
     def _get_in_lanes(self, way: Way) -> list[Lane]:
@@ -408,7 +352,6 @@ class Crossroad(EntityBase, metaclass=WithId):
         else:
             self.main_ways = []
 
-    # TODO: refactor
     def get_next_way_options(self, way: Way) -> list[NextWayOption]:
         next_way_options: list[NextWayOption] = []
 
@@ -462,9 +405,19 @@ class Crossroad(EntityBase, metaclass=WithId):
 
         lane_options: dict[Lane, list[Lane]] = {}
 
-        for lane in in_lanes:
+        for idx, lane in enumerate(in_lanes):
             if len(lane.turns) == 0 or Turn.none in lane.turns:
-                lane_options[lane] = out_lanes
+                if len(out_lanes) == len(in_lanes):
+                    lane_options[lane] = [out_lanes[idx]]
+                if len(out_lanes) > len(in_lanes):
+                    ratio = len(out_lanes) / len(in_lanes)
+                    next_lane_count = math.ceil(ratio)
+
+                    from_idx = idx * int(ratio)
+                    to_idx = from_idx + next_lane_count
+                    lane_options[lane] = out_lanes[from_idx:to_idx]
+                else:
+                    lane_options[lane] = out_lanes
             else:
                 lanes = [
                     out_lane for out_lane in out_lanes if turn_direction in lane.turns
@@ -502,8 +455,8 @@ class Crossroad(EntityBase, metaclass=WithId):
 
         return way_angle
 
-    # TODO: slight right/left
     def _update_turns(self):
+        """Calculate the ralative directions of the ways."""
         way_angle = self._get_way_angles()
         self.turns = {}
 

@@ -3,8 +3,6 @@ import simpy
 from .CarEvent import CarEvent
 from .CrossroadEvent import CrossroadEvent
 
-counter = 0
-
 
 class Calendar:
     def __init__(self, env: simpy.Environment):

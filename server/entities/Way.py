@@ -1,7 +1,6 @@
 from utils import Turn, HighwayClass
 import struct
 from .Node import Node
-from .Road import Road
 from .Lane import Lane
 from .Crossroad import Crossroad
 from .Entity import EntityBase, WithId
@@ -68,8 +67,6 @@ class Way(EntityBase, metaclass=WithId):
 
         self.length = None
         self.nodes = nodes if nodes is not None else []
-
-        self.roads = self._init_roads()
 
     def _get_length(self):
         length = 0
@@ -162,24 +159,11 @@ class Way(EntityBase, metaclass=WithId):
 
         return WayLanes(forward_lanes, backward_lanes)
 
-    def _init_roads(self) -> list[Road]:
-        lines = [
-            [self.nodes[i].pos, self.nodes[i + 1].pos]
-            for i in range(len(self.nodes) - 1)
-        ]
-
-        roads = [Road(line[0], line[1]) for line in lines]  # TODO: fix ID
-
-        for i in range(len(roads) - 1):
-            roads[i].set_next_road(roads[i + 1])
-
-        return roads
-
-    # splits way at given node, the beginning remains in the original way, the end is returned as a new way
     def split(self, node: Node):
+        """Splits way at given node, the beginning remains in the original way, the end is returned as a new way"""
         node_index = None
 
-        for i, n in enumerate(self.nodes):  # TODO: refactor
+        for i, n in enumerate(self.nodes):
             if n.id == node.id:
                 node_index = i
                 break
@@ -187,7 +171,6 @@ class Way(EntityBase, metaclass=WithId):
         new_way_nodes = self.nodes[: node_index + 1]
         this_way_nodes = self.nodes[node_index:]
 
-        self.roads = self.roads[node_index:]
         self.nodes = this_way_nodes
 
         new_way_lane_props = WayLanesProps(

@@ -7,6 +7,11 @@ class LatLng:
         self.lng = lng
 
 
+class Direction(Enum):
+    Right = 1
+    Left = 2
+
+
 HighwayClass = Enum(
     "HighwayClass",
     [
@@ -38,4 +43,4 @@ Turn = Enum(
         "slight_right",
         "slight_left",
     ],
-)  # TODO: add other
+)

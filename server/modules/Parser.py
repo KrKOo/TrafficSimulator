@@ -2,7 +2,6 @@ import osmium
 import simpy
 from utils import LatLng, str_to_int, Turn, HighwayClass
 from entities import Way, WayLanesProps, Crossroad, Node, Calendar
-import struct
 
 
 class Parser(osmium.SimpleHandler):
@@ -59,6 +58,7 @@ class Parser(osmium.SimpleHandler):
         lane_forward_count = str_to_int(w.tags.get("lanes:forward", "0"), 0)
         lane_backward_count = str_to_int(w.tags.get("lanes:backward", "0"), 0)
 
+        # Filtering out non-car lanes
         psv_lanes_forward = w.tags.get("psv:lanes:forward", "")
         psv_lane_forward_count = psv_lanes_forward.split("|").count("yes")
 
@@ -70,13 +70,6 @@ class Parser(osmium.SimpleHandler):
 
         railway_lanes_backward = w.tags.get("railway:lanes:backward", "")
         railway_lane_backward_count = railway_lanes_backward.split("|").count("tram")
-        if psv_lane_backward_count or railway_lane_backward_count:
-            print(
-                railway_lanes_backward,
-                railway_lane_backward_count,
-                psv_lanes_backward,
-                psv_lane_backward_count,
-            )
 
         oneway = w.tags.get("oneway") == "yes"
 
@@ -107,6 +100,7 @@ class Parser(osmium.SimpleHandler):
         forward_turns = self._parse_turns(w.tags.get("turn:lanes:forward", ""))
         backward_turns = self._parse_turns(w.tags.get("turn:lanes:backward", ""))
 
+        # Reverse the arrays since the simulation uses the opposite order than OSM
         forward_turns = (
             forward_turns[-lane_forward_count:][::-1] if forward_turns else None
         )
@@ -126,8 +120,24 @@ class Parser(osmium.SimpleHandler):
         turns = turns_str.split("|")
         turns = [turn.split(";") for turn in turns]
         turns = [[Turn[turn] for turn in lane_turns if turn] for lane_turns in turns]
+        res = []
 
-        return turns
+        for lane_turns in turns:
+            lane_res = []
+            for turn in lane_turns:
+                if not turn:
+                    continue
+
+                if turn == Turn.slight_left or turn == Turn.merge_to_left:
+                    lane_res.append(Turn.left)
+                    lane_res.append(Turn.through)
+
+                elif turn == Turn.slight_right or turn == Turn.merge_to_right:
+                    lane_res.append(Turn.right)
+                    lane_res.append(Turn.through)
+            res.append(lane_res)
+
+        return res
 
     def _init_way_crossroads(self, way: Way):
         prev_crossroad = self._create_or_update_crossroad_on_node(way.nodes[0])
@@ -153,9 +163,7 @@ class Parser(osmium.SimpleHandler):
 
         return crossroad
 
-    def _get_way_with_node_in_middle(
-        self, node: Node
-    ) -> Way:  # TODO: what if mulitple ways?
+    def _get_way_with_node_in_middle(self, node: Node) -> Way:
         for way in node.ways:
             if way.nodes[0].id != node.id and way.nodes[-1].id != node.id:
                 return way
