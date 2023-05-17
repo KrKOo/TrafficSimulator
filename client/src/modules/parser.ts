@@ -280,14 +280,6 @@ const parseSimulation = (buffer: ArrayBuffer): Simulation => {
   const carEventCount = view.getInt32(12);
   const crossroadEventCount = view.getInt32(16);
 
-  console.log(
-    nodesCount,
-    waysCount,
-    crossroadsCount,
-    carEventCount,
-    crossroadEventCount
-  );
-
   const nodesOffset = 20;
   const { nodes, size: nodesSize } = parseNodes(
     buffer.slice(nodesOffset),

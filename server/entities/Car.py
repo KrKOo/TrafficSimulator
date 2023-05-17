@@ -40,8 +40,9 @@ class Car(SimulationEntity, metaclass=WithId):
         way: Way,
         lane: Lane,
         position: float,
-        speed: int,
+        comfortable_speed: int,
         length: int = 0.003,
+        ways_to_cross_before_despawn: int = 50,
     ):
         SimulationEntity.__init__(self, env)
         self.id = next(self._ids)
@@ -52,8 +53,8 @@ class Car(SimulationEntity, metaclass=WithId):
         # current lane
         self.lane = lane
         # max comfortable speed for the driver
-        self.desired_speed = speed  # in km/h
-        self._speed = speed  # in km/h
+        self.comfortable_speed = comfortable_speed  # percentage of speed limit
+        self._speed = way.max_speed * comfortable_speed  # in km/h
         # car length
         self.length = length  # in km
         self._position = position  # in km
@@ -62,6 +63,7 @@ class Car(SimulationEntity, metaclass=WithId):
 
         self.place_car_on_lane(lane, position)
 
+        self.ways_to_cross_before_despawn = ways_to_cross_before_despawn
         self._next_way = None
         self._next_lanes: list[Lane] = []
         self._lane_to_switch = None
@@ -95,10 +97,9 @@ class Car(SimulationEntity, metaclass=WithId):
 
     @way.setter
     def way(self, value):
+        self.ways_to_cross_before_despawn -= 1
         self._way = value
-        self._next_crossroad_blocked = (
-            False  # TODO: might change when lane chaning is applied
-        )
+        self._next_crossroad_blocked = False
 
     @property
     def position(self) -> float:
@@ -140,6 +141,15 @@ class Car(SimulationEntity, metaclass=WithId):
                 self._crossroad_unblock_proc = start_delayed(
                     self.env, self._unblock_crossroad_process(), time_to_leave_crossroad
                 )
+
+    @property
+    def desired_speed(self) -> float:
+        if self.way:
+            return self.way.max_speed * (self.comfortable_speed / 100)
+        elif self._next_way:
+            return self._next_way.max_speed * (self.comfortable_speed / 100)
+        else:
+            return 40
 
     def _unblock_crossroad_process(self):
         self._unblock_crossroad()
@@ -266,6 +276,7 @@ class Car(SimulationEntity, metaclass=WithId):
         if self.speed == 0:
             return math.inf
 
+        print("DDDD: ", distance, self.speed)
         return (distance / self.speed) * 3600
 
     def time_to_be_at_position(self, dest_position: float) -> float:
@@ -273,6 +284,13 @@ class Car(SimulationEntity, metaclass=WithId):
         Returns the time it takes to be at the given position.
         Returns negative time if the car is already past the dest_position
         """
+        print(
+            "TTTT: ",
+            dest_position,
+            self.position,
+            dest_position - self.position,
+            self.speed,
+        )
         return self.time_to_travel_distance(dest_position - self.position)
 
     @property
@@ -526,7 +544,7 @@ class Car(SimulationEntity, metaclass=WithId):
                         return CarState.Despawning
                     self.speed = 0
                     yield blocking_car.update_event & self.env.timeout(1)
-                    self.speed = min(self.desired_speed, self.way.max_speed)
+                    self.speed = self.desired_speed
                     continue
 
                 p_result = yield self.env.process(
@@ -581,14 +599,14 @@ class Car(SimulationEntity, metaclass=WithId):
             print(f"Car {self.id} lane crossroad {self.lane.crossroad.id}")
             return CarState.CrossingCrossroad
 
-        self.speed = min(self.desired_speed, self.way.max_speed)
+        self.speed = self.desired_speed
 
         p = yield self.env.process(
             self.drive_to_lane_percentage(random.randint(30, 80))
         )
-        print(
-            f"Car {self.id} is at {self.lane_percentage}% of way {self.way.osm_id} at {self.env.now}"
-        )
+
+        if self.ways_to_cross_before_despawn == 0:
+            return CarState.Despawning
 
         if CarState(p.value) != CarState.Undefinded:
             return p.value
@@ -685,7 +703,7 @@ class Car(SimulationEntity, metaclass=WithId):
             self.speed = (
                 car_ahead.speed
                 if car_ahead and car_ahead.position <= car_ahead.length + MIN_GAP
-                else self.desired_speed  # TODO: Careful
+                else self.desired_speed
             )
             if self.speed == 0:
                 self.speed = self.desired_speed
