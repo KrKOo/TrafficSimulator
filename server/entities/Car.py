@@ -529,7 +529,7 @@ class Car(SimulationEntity, metaclass=WithId):
                         return CarState.Despawning
                     self.speed = 0
                     yield blocking_car.update_event & self.env.timeout(1)
-                    self.speed = self.desired_speed
+                    self.speed = min(self.desired_speed, self.way.max_speed)
                     continue
 
                 p_result = yield self.env.process(
@@ -584,7 +584,7 @@ class Car(SimulationEntity, metaclass=WithId):
             print(f"Car {self.id} lane crossroad {self.lane.crossroad.id}")
             return CarState.CrossingCrossroad
 
-        self.speed = self.desired_speed
+        self.speed = min(self.desired_speed, self.way.max_speed)
 
         p = yield self.env.process(
             self.drive_to_lane_percentage(random.randint(30, 80))

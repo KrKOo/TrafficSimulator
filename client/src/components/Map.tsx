@@ -117,7 +117,6 @@ const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
 
   let position;
   if (prev_event_props.lane !== next_event_props.lane) {
-    // position = prev_event_props.lane.is_forward ? 100 : 0;
     position = 100;
   } else {
     const position_diff = next_event_props.position - prev_event_props.position;
@@ -134,7 +133,6 @@ const getCarPropsAtTime = (car_props_in_time: CarProps[], time: number) => {
   );
 
   if (!coords) {
-    console.log('no coords', prev_event_props.id);
     return null;
   }
 
@@ -261,6 +259,7 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
               <div>id: {car.id}</div>
               <div>lane_id: {car.lane.id}</div>
               <div>speed: {car.speed}</div>
+              <div>speed limit: {car.way?.max_speed}</div>
             </Popup>
           </Circle>
         );
@@ -309,8 +308,11 @@ const Roadnet = React.memo(({ simulation }: RoadnetProps) => {
             positions={lane.nodes}
             dashOffset='50'
             color={lane.is_forward ? 'red' : 'green'}
-            weight={2}
-          />
+            weight={2}>
+            <Popup>
+              <div>id: {lane.id}</div>
+            </Popup>
+          </Polyline>
         ));
       })}
 
@@ -333,8 +335,11 @@ const Roadnet = React.memo(({ simulation }: RoadnetProps) => {
                   positions={lane.nodes}
                   dashOffset='50'
                   color={'gray'}
-                  weight={1}
-                />
+                  weight={1}>
+                  <Popup>
+                    <div>id: {lane.id}</div>
+                  </Popup>
+                </Polyline>
               );
             })}
           </>
