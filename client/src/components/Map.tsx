@@ -272,7 +272,7 @@ const Map = ({ simulation, time: time_prop }: MapProps) => {
             <Popup>
               <div>id: {car.id}</div>
               <div>lane_id: {car.lane.id}</div>
-              <div>speed: {car.speed}</div>
+              <div>speed: {car.speed.toFixed(2)}</div>
               <div>speed limit: {car.way?.max_speed}</div>
             </Popup>
           </Circle>

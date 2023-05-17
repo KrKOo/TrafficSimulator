@@ -472,6 +472,53 @@ class Car(SimulationEntity, metaclass=WithId):
 
         return None
 
+    def should_overtake(self, neighbour_lane: Lane):
+        if neighbour_lane is None or self.car_ahead is None:
+            return False
+
+        space_ahead_car_ahead = self.lane.length - self.car_ahead.position
+        if self.car_ahead.car_ahead is not None:
+            space_ahead_car_ahead = self.car_ahead.car_ahead.position - self.car_ahead.position - self.car_ahead.car_ahead.length - MIN_GAP
+
+        if space_ahead_car_ahead < self.length + MIN_GAP:
+            return False
+
+        mirror_position = self.get_mirror_position_in_lane(neighbour_lane)
+        neighbour_lane_return_position = (mirror_position + neighbour_lane.length) / 2
+        this_lane_return_position = (self.position + self.lane.length) / 2
+        get_ahead_car_ahead_time = (neighbour_lane_return_position - mirror_position) / self.desired_speed
+
+        car_ahead_reach_return_position_time = (this_lane_return_position - self.length - MIN_GAP) / self.car_ahead.speed  if self.car_ahead.speed > 0 else math.inf
+
+        if car_ahead_reach_return_position_time < get_ahead_car_ahead_time:
+            return False
+
+        return True
+
+    def can_overtake(self, neighbour_lane: Lane):
+        if neighbour_lane is None or self.car_ahead is None:
+            return False
+
+        mirror_position = self.get_mirror_position_in_lane(neighbour_lane)
+        car_ahead_in_neighbour_lane = neighbour_lane.get_car_ahead_of_position(mirror_position)
+        if car_ahead_in_neighbour_lane is None:
+            return True
+
+        distance_to_car_ahead_in_neighbour_lane = car_ahead_in_neighbour_lane.position - mirror_position
+
+        speed_diff = (self.speed - car_ahead_in_neighbour_lane.speed)
+        if speed_diff <= 0:
+            time_to_reach_car_ahead_in_neighbour_lane = math.inf
+        else:
+            time_to_reach_car_ahead_in_neighbour_lane = (distance_to_car_ahead_in_neighbour_lane / speed_diff) * 3600
+
+        return_time = 2 * MIN_GAP + self.car_ahead.length + self.length
+
+        if time_to_reach_car_ahead_in_neighbour_lane < return_time:
+            return False
+
+        return True
+
     """
     ################################################
                     DRIVING MODEL
@@ -514,7 +561,6 @@ class Car(SimulationEntity, metaclass=WithId):
         )
 
         can_switch = False
-
         while not can_switch:
             blocking_car = self.get_lane_blocking_car(destination_lane)
 
@@ -578,8 +624,10 @@ class Car(SimulationEntity, metaclass=WithId):
 
         self.speed = self.desired_speed
 
+        min_lane_change_percentage = self.lane_percentage + (100 - self.lane_percentage) / 2
+
         p = yield self.env.process(
-            self.drive_to_lane_percentage(random.randint(30, 80))
+            self.drive_to_lane_percentage(random.uniform(min_lane_change_percentage, 100))
         )
 
         if self.ways_to_cross_before_despawn == 0:
@@ -637,21 +685,41 @@ class Car(SimulationEntity, metaclass=WithId):
 
         # Switch lane if would switch anyways at some point
         if self._lane_to_switch is not None:
-            yield self.env.process(
+            p = yield self.env.process(
                 self.switch_closer_to_lane_process(self._lane_to_switch)
             )
 
             if self.lane == self._lane_to_switch:
                 self._lane_to_switch = None
 
-            return CarState.Crossing
+            return p.value
+
+        # Try to overtake to left and right side
+        if self.can_overtake(self.lane.left) and self.should_overtake(self.lane.left):
+            this_lane = self.lane
+            self.state = CarState.Crossing
+            p = yield self.env.process(self.switch_closer_to_lane_process(self.lane.left))
+            if this_lane != self.lane:
+                self._lane_to_switch = this_lane
+
+            return p.value
+        elif self.can_overtake(self.lane.right) and self.should_overtake(self.lane.right):
+            this_lane = self.lane
+            self.state = CarState.Crossing
+            p = yield self.env.process(self.switch_closer_to_lane_process(self.lane.right))
+            if this_lane != self.lane:
+                self._lane_to_switch = this_lane
+
+            return p.value
 
         self.speed = min(self.car_ahead.speed, self.desired_speed)
         original_car_ahead = self.car_ahead
         lane_end_timeout = self.env.timeout(
             self.time_to_be_at_position(self.lane.length)
         )
-        yield self.environment_update_event | self._car_ahead_update_event | lane_end_timeout
+        try_overtake_timeout = self.env.timeout(3) # try to overtake again
+
+        yield self.environment_update_event | self._car_ahead_update_event | lane_end_timeout | try_overtake_timeout
 
         if lane_end_timeout.processed:
             return CarState.Waiting
