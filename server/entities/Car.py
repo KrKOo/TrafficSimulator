@@ -150,9 +150,6 @@ class Car(SimulationEntity, metaclass=WithId):
         """Return the percentage of the way the car is on"""
         p = self.position / self.lane.length
 
-        # if self.lane.is_forward == False:
-        #     p = 1 - p
-
         return abs(round(p * 100, 4))
 
     @property
