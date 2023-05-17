@@ -176,6 +176,10 @@ class Crossroad(EntityBase, metaclass=WithId):
         yield self.env.timeout(random.randint(0, TRAFFIC_LIGHT_INTERVAL))
 
         while True:
+            self.disable_all_lanes()
+            self.calendar_crossroad_update()
+            yield self.env.timeout(TRAFFIC_LIGHT_DISABLED_TIME)
+
             self.enable_all_lanes()
             self.disable_lanes_beginning_on_way(dir1[0])
             self.disable_lanes_beginning_on_way(dir1[1])
@@ -192,9 +196,6 @@ class Crossroad(EntityBase, metaclass=WithId):
             self.calendar_crossroad_update()
 
             yield self.env.timeout(TRAFFIC_LIGHT_INTERVAL)
-            self.disable_all_lanes()
-            self.calendar_crossroad_update()
-            yield self.env.timeout(TRAFFIC_LIGHT_DISABLED_TIME)
 
     def lane_begin_way(self, lane: Lane) -> Way:
         for way in self._ways:

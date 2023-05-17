@@ -2,16 +2,16 @@
 MIN_GAP = 0.001
 
 # how many seconds ahead should a car block the crossroad (on main way) (s)
-CROSSROAD_BLOCKING_TIME = 3
+CROSSROAD_BLOCKING_TIME = 2
 
 # how often should the traffic light switch colors (s)
 TRAFFIC_LIGHT_INTERVAL = 20
 
 # how long should all directions be blocked between switches (s)
-TRAFFIC_LIGHT_DISABLED_TIME = 5
+TRAFFIC_LIGHT_DISABLED_TIME = 3
 
 # minimum number of ways to cross before despawn
-MIN_TRAVEL_DISTANCE = 10
+MIN_TRAVEL_DISTANCE = 50
 
 # maximum number of ways to cross before despawn
 MAX_TRAVEL_DISTANCE = 50
