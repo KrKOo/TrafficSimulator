@@ -119,7 +119,7 @@ class Parser(osmium.SimpleHandler):
             return None
         turns = turns_str.split("|")
         turns = [turn.split(";") for turn in turns]
-        turns = [[Turn[turn] for turn in lane_turns if turn] for lane_turns in turns]
+
         res = []
 
         for lane_turns in turns:
@@ -128,13 +128,17 @@ class Parser(osmium.SimpleHandler):
                 if not turn:
                     continue
 
-                if turn == Turn.slight_left or turn == Turn.merge_to_left:
+                enum_turn = Turn[turn]
+
+                if enum_turn == Turn.slight_left or enum_turn == Turn.merge_to_left:
                     lane_res.append(Turn.left)
                     lane_res.append(Turn.through)
 
-                elif turn == Turn.slight_right or turn == Turn.merge_to_right:
+                elif enum_turn == Turn.slight_right or enum_turn == Turn.merge_to_right:
                     lane_res.append(Turn.right)
                     lane_res.append(Turn.through)
+                else:
+                    lane_res.append(enum_turn)
             res.append(lane_res)
 
         return res

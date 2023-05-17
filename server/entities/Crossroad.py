@@ -418,13 +418,6 @@ class Crossroad(EntityBase, metaclass=WithId):
             if len(lane.turns) == 0 or Turn.none in lane.turns:
                 if len(out_lanes) == len(in_lanes):
                     lane_options[lane] = [out_lanes[idx]]
-                if len(out_lanes) > len(in_lanes):
-                    ratio = len(out_lanes) / len(in_lanes)
-                    next_lane_count = math.ceil(ratio)
-
-                    from_idx = idx * int(ratio)
-                    to_idx = from_idx + next_lane_count
-                    lane_options[lane] = out_lanes[from_idx:to_idx]
                 else:
                     lane_options[lane] = out_lanes
             else:
@@ -432,7 +425,12 @@ class Crossroad(EntityBase, metaclass=WithId):
                     out_lane for out_lane in out_lanes if turn_direction in lane.turns
                 ]
 
-                if len(lanes) > 0:
+                if len(lanes) == 0:
+                    continue
+
+                if len(lanes) == len(in_lanes):
+                    lane_options[lane] = [lanes[idx]]
+                else:
                     lane_options[lane] = lanes
 
         return lane_options

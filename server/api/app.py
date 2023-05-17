@@ -20,7 +20,7 @@ def simulation():
 
     parser = Parser(env, calendar)
 
-    parser.parse("data/clean_brno.osm")
+    parser.parse("data/brno.pbf")
 
     print("Roadnet parsed.")
     spawner = VehicleSpawner(env, calendar, parser.ways)
@@ -56,8 +56,5 @@ def simulation():
 
     response = Response(struct_header + roadnet_bytes + event_bytes)
     response.headers["Access-Control-Allow-Origin"] = "*"
-    print(
-        node_count, way_count, crossroad_count, car_event_count, crossroad_event_count
-    )
 
     return response
