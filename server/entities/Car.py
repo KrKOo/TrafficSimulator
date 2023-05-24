@@ -270,6 +270,9 @@ class Car(SimulationEntity, metaclass=WithId):
 
     def time_to_travel_distance(self, distance: float) -> float:
         """Returns the time it takes to travel the given distance"""
+        if abs(distance) < 0.00001:
+            return 0
+
         if self.speed == 0:
             return math.inf
 
@@ -315,6 +318,11 @@ class Car(SimulationEntity, metaclass=WithId):
             self.way in self.next_crossroad.main_ways
             and self._next_way in self.next_crossroad.main_ways
         ):
+            return True
+
+    @property
+    def is_on_main_way(self):
+        if self.way in self.next_crossroad.main_ways:
             return True
 
     @property
@@ -405,8 +413,11 @@ class Car(SimulationEntity, metaclass=WithId):
 
     def _wait_and_block_crossroad(self):
         """Waits for the next crossroad to be unblocked and then blocks it"""
-        while self.is_next_crossroad_blocked:
-            yield self.env.timeout(1)  # wait and try again
+        while self.is_next_crossroad_blocked or (not self.next_crossroad.has_traffic_light and not self.is_on_main_way and self.has_car_on_right):
+            if self.is_on_main_way:
+                yield self.env.timeout(1)  # wait and try again
+            else:
+                yield self.env.timeout(1.5)
 
         yield self._block_next_crossroad()  # should be instant
 
@@ -667,7 +678,7 @@ class Car(SimulationEntity, metaclass=WithId):
         if (
             not self.is_next_crossroad_blocked
             and self.is_first_in_lane
-            and (self.driving_on_main_way or not self.has_car_on_right)
+            and (self.driving_on_main_way)
         ):
             yield self._block_next_crossroad()  # should be instant
             self._next_crossroad_blocked = True

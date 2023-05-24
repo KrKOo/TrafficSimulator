@@ -20,7 +20,7 @@ def simulation():
 
     parser = Parser(env, calendar)
 
-    parser.parse("data/brno.pbf")
+    parser.parse("data/brno.osm")
 
     print("Roadnet parsed.")
     spawner = VehicleSpawner(env, calendar, parser.ways)

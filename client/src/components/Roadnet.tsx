@@ -39,6 +39,7 @@ const Roadnet = React.memo(({ simulation }: RoadnetProps) => {
           <>
             {crossroad.has_traffic_light && (
               <Circle
+                key={key}
                 center={{ lat: crossroad.lat, lng: crossroad.lng }}
                 color='red'
                 fillColor='green'
