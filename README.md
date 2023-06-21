@@ -61,3 +61,7 @@ npm run dev
 ```
 npm run build
 ```
+
+# Ukážka užívateľského rozhrania
+
+<img src="preview.png" alt="ui_preview" width="100%"/>
